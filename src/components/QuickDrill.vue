@@ -98,8 +98,11 @@
               • Score: {{ score }} / {{ totalQuestions }}
             </span>
           </span>
-          <span class="progress-hint" v-if="!showResults">
+          <span class="progress-hint" v-if="!showResults && !isInstantMode">
             Tap an option to answer — you can change answers before submitting.
+          </span>
+          <span class="progress-hint" v-else-if="!showResults && isInstantMode">
+            Tap an option to answer — you’ll see correct/incorrect instantly.
           </span>
           <span class="progress-hint" v-else>
             Scroll to review explanations for each question.
@@ -176,9 +179,9 @@
       v-if="questions.length && !drillLoading"
       class="drill-body"
     >
-      <!-- 🔄 Explanations loading indicator (after submit) -->
+      <!-- 🔄 Explanations loading indicator (after submit, end-mode) -->
       <div
-        v-if="showResults && explanationsLoading"
+        v-if="showResults && explanationsLoading && !isInstantMode"
         class="spinner-area explanations-spinner"
       >
         <div class="spinner"></div>
@@ -225,9 +228,11 @@
             </button>
           </div>
 
-          <!-- 🧠 Only show explanations when NOT loading -->
+          <!-- 🧠 Explanations:
+               - END MODE: show after submit (showResults)
+               - INSTANT MODE: show as soon as explanation is fetched -->
           <p
-            v-if="showResults && q.explanation && !explanationsLoading"
+            v-if="(isInstantMode || showResults) && q.explanation"
             class="explanation-text"
           >
             <span class="explanation-label">Why:</span>
@@ -297,11 +302,19 @@ const props = defineProps({
     type: String,
     default: "inline",
   },
+  // 🔑 NEW: how to show feedback
+  feedbackMode: {
+    type: String,
+    default: "end",
+    validator: (v) => v === "instant" || v === "end",
+  },
 });
 
 const emit = defineEmits(["toast", "completed", "progress"]);
 
 const router = useRouter();
+
+const isInstantMode = computed(() => props.feedbackMode === "instant");
 
 function showToast(message, type = "success") {
   emit("toast", { message, type });
@@ -317,13 +330,16 @@ const questions = ref([]);
 const userAnswers = ref({});
 const showResults = ref(false);
 
+// NEW: per-question result for instant mode: { [id]: 'correct' | 'incorrect' }
+const questionResults = ref({});
+
 // Last drill (localStorage)
 const lastDrill = ref(null);
 
 // For question scrolling
 const questionRefs = ref([]);
 
-// 🔄 Explanations loading flag
+// Explanations loading (used for END mode bulk fetch)
 const explanationsLoading = ref(false);
 
 // Timer
@@ -347,8 +363,9 @@ const progressPercent = computed(() => {
   return Math.round((answeredCount.value / totalQuestions.value) * 100);
 });
 
+// ✅ score is always computable (used in both modes)
 const score = computed(() => {
-  if (!showResults.value || !questions.value.length) return 0;
+  if (!questions.value.length) return 0;
   let correct = 0;
   for (const q of questions.value) {
     const ans = userAnswers.value[q.id];
@@ -435,6 +452,7 @@ async function startQuickDrill() {
     questions.value = [];
     questionRefs.value = [];
     explanationsLoading.value = false;
+    questionResults.value = {};
     stopTimer();
     timerSeconds.value = 0;
 
@@ -470,14 +488,38 @@ async function startQuickDrill() {
   }
 }
 
-function selectAnswer(questionId, optionKey) {
-  if (showResults.value) return; // lock after submit
+async function selectAnswer(questionId, optionKey) {
+  // END MODE: don’t allow changing after results are shown
+  if (!isInstantMode.value && showResults.value) return;
+
   userAnswers.value = {
     ...userAnswers.value,
     [questionId]: optionKey,
   };
 
-  // Update parent progress (current question may move to next unanswered)
+  const q = questions.value.find((x) => x.id === questionId);
+
+  if (q && isInstantMode.value) {
+    // ✅ Mark this question immediately as correct / incorrect
+    const result = optionKey === q.correct_option ? "correct" : "incorrect";
+    questionResults.value = {
+      ...questionResults.value,
+      [questionId]: result,
+    };
+
+    // 🔍 Fetch explanation for THIS question only (instant explanations)
+    try {
+      if (!q.explanation || !q.explanation.trim()) {
+        const data = await getQuestionExplanation(q.id);
+        q.explanation = data.explanation;
+      }
+    } catch (e) {
+      console.error("Failed to load explanation", e);
+      showToast("Could not load explanation for this question.", "error");
+    }
+  }
+
+  // Update parent progress
   emitProgress("active");
 }
 
@@ -520,7 +562,7 @@ function loadLastDrill() {
 async function submitDrill() {
   if (!questions.value.length) return;
 
-  // Show results so the score computed becomes valid
+  // Show results so the score + end-mode styling becomes visible
   showResults.value = true;
   stopTimer();
 
@@ -560,7 +602,9 @@ async function submitDrill() {
     date: new Date().toISOString(),
   });
 
-  // Lazy-load explanations only for questions that don't have one yet
+  // 🔁 Explanations behaviour:
+  // - END MODE: bulk-load all missing explanations
+  // - INSTANT MODE: we already fetched some per question, so we only fill the rest
   const pending = questions.value.filter(
     (q) => !q.explanation || !q.explanation.trim()
   );
@@ -568,8 +612,10 @@ async function submitDrill() {
   if (!pending.length) return;
 
   try {
-    // 🚨 Show loading indicator while explanations are being fetched
-    explanationsLoading.value = true;
+    if (!isInstantMode.value) {
+      // 🚨 Show loading indicator only in end mode
+      explanationsLoading.value = true;
+    }
 
     await Promise.all(
       pending.map(async (q) => {
@@ -581,7 +627,6 @@ async function submitDrill() {
     console.error("Failed to fetch explanations", e);
     showToast("Some explanations could not be loaded.", "error");
   } finally {
-    // ✅ Hide loading indicator once done (success or fail)
     explanationsLoading.value = false;
   }
 }
@@ -593,6 +638,7 @@ function resetDrill() {
   drillError.value = null;
   questionRefs.value = [];
   explanationsLoading.value = false;
+  questionResults.value = {};
   stopTimer();
   timerSeconds.value = 0;
   emitProgress("idle");
@@ -601,6 +647,29 @@ function resetDrill() {
 // class helper for options
 function optionClass(q, opt) {
   const selected = userAnswers.value[q.id];
+
+  // INSTANT MODE: use per-question result if available
+  if (isInstantMode.value) {
+    const result = questionResults.value[q.id]; // 'correct' | 'incorrect' | undefined
+
+    // Before answer is marked, just highlight selected
+    if (!result) {
+      return {
+        selected: selected === opt,
+      };
+    }
+
+    const isCorrectOption = opt === q.correct_option;
+    const isSelected = selected === opt;
+
+    return {
+      correct: isCorrectOption,
+      incorrect: !isCorrectOption && isSelected,
+      selected: isSelected,
+    };
+  }
+
+  // END MODE: old behaviour (only after submit)
   if (!showResults.value) {
     return {
       selected: selected === opt,
@@ -625,6 +694,19 @@ function questionNavClass(q) {
     classes["question-nav-dot--answered"] = true;
   }
 
+  const result = questionResults.value[q.id];
+
+  // INSTANT MODE: color code as soon as result is known
+  if (isInstantMode.value && result) {
+    if (result === "correct") {
+      classes["question-nav-dot--correct"] = true;
+    } else if (result === "incorrect") {
+      classes["question-nav-dot--incorrect"] = true;
+    }
+    return classes;
+  }
+
+  // END MODE: color code only after submit
   if (showResults.value) {
     if (selected === q.correct_option) {
       classes["question-nav-dot--correct"] = true;

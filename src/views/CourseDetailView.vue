@@ -152,7 +152,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from "vue";
+import { ref, onMounted, onBeforeUnmount, computed, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { getCourse } from "../services/courses";
 
@@ -180,6 +180,14 @@ const activeMobileTab = ref("materials"); // 'materials' | 'drill' | 'ai'
 
 // Inline drill toggle (desktop)
 const showInlineQuickDrill = ref(false);
+
+// 🔥 Drill ID from query (?drillId=123)
+const drillIdFromQuery = computed(() => {
+  const raw = route.query.drillId;
+  if (raw === undefined || raw === null || raw === "") return null;
+  const num = Number(raw);
+  return Number.isNaN(num) ? null : num;
+});
 
 function setActiveTab(tab) {
   activeMobileTab.value = tab;
@@ -237,10 +245,37 @@ function openFullDrillPage() {
   });
 }
 
+// 👀 React when drillId in query changes (e.g. coming from dashboard)
+watch(
+  () => route.query.drillId,
+  (newVal) => {
+    const hasDrillId =
+      newVal !== undefined && newVal !== null && newVal !== "";
+    if (!hasDrillId) return;
+
+    if (isMobile.value) {
+      // On mobile, jump straight to Quick drill tab
+      activeMobileTab.value = "drill";
+    } else {
+      // On desktop, open the inline QuickDrill card
+      showInlineQuickDrill.value = true;
+    }
+  }
+);
+
 onMounted(() => {
   loadCourse();
   updateIsMobile();
   window.addEventListener("resize", updateIsMobile);
+
+  // Initial navigation with ?drillId=...
+  if (drillIdFromQuery.value) {
+    if (isMobile.value) {
+      activeMobileTab.value = "drill";
+    } else {
+      showInlineQuickDrill.value = true;
+    }
+  }
 });
 
 onBeforeUnmount(() => {
