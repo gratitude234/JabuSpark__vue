@@ -1,7 +1,7 @@
 <!-- src/views/QuickDrillView.vue -->
 <template>
   <div class="page page--quick-drill">
-    <!-- Simple toast using the same pattern as your other views -->
+    <!-- Toast -->
     <div
       v-if="toast.visible"
       :class="['toast', `toast--${toast.type}`]"
@@ -9,23 +9,36 @@
       {{ toast.message }}
     </div>
 
+    <!-- Sticky exam-style header -->
     <header class="page-header page-header--quick-drill">
       <div class="header-left">
-        <button class="back-link" type="button" @click="goBack">
-          ← Back
+        <button class="back-link back-link--ghost" type="button" @click="goBack">
+          <span class="back-icon">←</span>
+          <span class="back-text">Back</span>
         </button>
 
         <div class="header-text">
-          <h1 class="page-title">Quick drill</h1>
+          <p class="eyebrow-label">Quick drill workspace</p>
+          <h1 class="page-title">
+            Quick drill
+          </h1>
+
           <p class="page-sub">
-            <span>Fast MCQ session from {{ headerCourseLabel }}</span>
-            <span v-if="headerCourseMeta">
-              {{ headerCourseMeta }}
+            <span class="page-sub-main">
+              Fast MCQ session from {{ headerCourseLabel }}
+            </span>
+            <span
+              v-if="headerCourseMeta"
+              class="page-sub-meta"
+            >
+              · {{ headerCourseMeta }}
             </span>
           </p>
 
           <div class="mode-row">
-            <span class="mode-pill">Exam workspace</span>
+            <span class="mode-pill">
+              Exam workspace
+            </span>
             <span class="mode-pill mode-pill--soft">
               CBT-style quick drill
             </span>
@@ -44,60 +57,95 @@
       </div>
     </header>
 
+    <!-- Thin progress bar under header -->
+    <div
+      v-if="drillProgress.active && drillProgress.total"
+      class="drill-progress-shell"
+    >
+      <div class="drill-progress-track">
+        <div
+          class="drill-progress-fill"
+          :style="{ width: progressPercent + '%' }"
+        ></div>
+      </div>
+      <div class="drill-progress-meta">
+        <span>Question {{ drillProgress.current }} of {{ drillProgress.total }}</span>
+        <span>{{ progressPercent }}%</span>
+      </div>
+    </div>
+
     <main class="page-main quick-drill-page-main">
       <div class="quick-drill-inner">
         <!-- If no course chosen yet: show info + course picker -->
         <template v-if="!courseId">
-          <StateBlock
-            title="Pick a course first"
-            message="Start a quick drill from a specific course so we know where to pull questions from."
-            tone="info"
-          />
+          <div class="quick-grid">
+            <div class="quick-grid-col quick-grid-col--intro">
+              <StateBlock
+                title="Pick a course to begin"
+                message="Run focused MCQ sessions against a specific course so Jabuspark knows where to pull questions from."
+                tone="info"
+              />
 
-          <section class="card course-picker-card">
-            <div class="course-picker-header">
-              <h2>Select a course to drill</h2>
-              <p class="course-picker-sub">
-                Choose any of your registered courses to generate practice questions.
-              </p>
+              <section class="card info-card">
+                <h2 class="info-card-title">How quick drill works</h2>
+                <ul class="info-list">
+                  <li>Choose one of your registered courses.</li>
+                  <li>Jabuspark pulls random MCQs for that course.</li>
+                  <li>Everything is timed and auto-marked like CBT.</li>
+                  <li>Your best scores and last attempt are tracked.</li>
+                </ul>
+              </section>
             </div>
 
-            <div v-if="loadingCoursesList" class="picker-loading">
-              <div class="spinner"></div>
-              <p class="picker-loading-text">Loading your courses…</p>
-            </div>
-
-            <div v-else>
-              <p v-if="coursesError" class="error-text">
-                {{ coursesError }}
-              </p>
-
-              <div v-if="coursesList.length" class="picker-form">
-                <label for="course-select" class="field-label">
-                  Course
-                </label>
-                <select
-                  id="course-select"
-                  class="select-input"
-                  v-model="selectedCourseId"
-                  @change="handleCourseSelect"
-                >
-                  <option value="">Select a course</option>
-                  <option
-                    v-for="c in coursesList"
-                    :key="c.id"
-                    :value="c.id"
-                  >
-                    {{ c.code }} – {{ c.title }}
-                  </option>
-                </select>
+            <section class="card course-picker-card quick-grid-col quick-grid-col--picker">
+              <div class="course-picker-header">
+                <h2>Select a course to drill</h2>
+                <p class="course-picker-sub">
+                  Choose any of your registered courses to generate practice questions.
+                </p>
               </div>
 
-              <p v-else class="empty-text">
-                No courses found yet. Try adding courses first from your courses page.
-              </p>
-            </div>
-          </section>
+              <div v-if="loadingCoursesList" class="picker-loading">
+                <div class="spinner"></div>
+                <p class="picker-loading-text">Loading your courses…</p>
+              </div>
+
+              <div v-else>
+                <p v-if="coursesError" class="error-text">
+                  {{ coursesError }}
+                </p>
+
+                <div v-if="coursesList.length" class="picker-form">
+                  <label for="course-select" class="field-label">
+                    Course
+                  </label>
+                  <select
+                    id="course-select"
+                    class="select-input"
+                    v-model="selectedCourseId"
+                    @change="handleCourseSelect"
+                  >
+                    <option value="">Select a course</option>
+                    <option
+                      v-for="c in coursesList"
+                      :key="c.id"
+                      :value="c.id"
+                    >
+                      {{ c.code }} – {{ c.title }}
+                    </option>
+                  </select>
+
+                  <p class="helper-text">
+                    You can always switch course later from the header.
+                  </p>
+                </div>
+
+                <p v-else class="empty-text">
+                  No courses found yet. Try adding courses first from your courses page.
+                </p>
+              </div>
+            </section>
+          </div>
         </template>
 
         <!-- Course chosen: summary + drill card -->
@@ -120,12 +168,12 @@
                 Short, focused MCQ sessions to help you check your understanding for this course.
               </p>
 
-              <div class="stats-row" v-if="hasLastDrill">
-                <div class="stat-pill">
+              <div v-if="hasLastDrill" class="stats-row">
+                <div class="stat-pill stat-pill--emphasis">
                   <span class="stat-label">Last score</span>
                   <span class="stat-value">
                     {{ lastDrill.score }} / {{ lastDrill.total }}
-                    <span v-if="lastDrillPercent !== null">
+                    <span v-if="lastDrillPercent !== null" class="stat-percent">
                       ({{ lastDrillPercent }}%)
                     </span>
                   </span>
@@ -152,12 +200,40 @@
             </div>
           </section>
 
-          <QuickDrillCard
-            :course-id="courseId"
-            mode="fullscreen"
-            @toast="handleToast"
-            @completed="handleDrillCompleted"
-          />
+          <section class="quick-drill-card-shell">
+            <div class="quick-drill-card-header">
+              <div>
+                <h2 class="quick-drill-title">Start a quick drill</h2>
+                <p class="quick-drill-sub">
+                  Choose your drill settings below and begin. Your score will be saved to this course.
+                </p>
+              </div>
+
+              <!-- Keyboard shortcut hints -->
+              <ul class="shortcut-list">
+                <li>
+                  <span class="shortcut-key">← / →</span>
+                  <span class="shortcut-label">Previous / next question</span>
+                </li>
+                <li>
+                  <span class="shortcut-key">1 – 4</span>
+                  <span class="shortcut-label">Select options</span>
+                </li>
+                <li>
+                  <span class="shortcut-key">Enter</span>
+                  <span class="shortcut-label">Submit / go next</span>
+                </li>
+              </ul>
+            </div>
+
+            <QuickDrillCard
+              :course-id="courseId"
+              mode="fullscreen"
+              @toast="handleToast"
+              @progress="handleDrillProgress"
+              @completed="handleDrillCompleted"
+            />
+          </section>
         </template>
       </div>
     </main>
@@ -199,6 +275,21 @@ const toast = ref({
 
 // Last drill summary for this course (from localStorage or @completed)
 const lastDrill = ref(null);
+
+// Progress bar state (live during drill)
+const drillProgress = ref({
+  current: 0,
+  total: 0,
+  active: false,
+});
+
+const progressPercent = computed(() => {
+  if (!drillProgress.value.total) return 0;
+  const pct = Math.round(
+    (drillProgress.value.current / drillProgress.value.total) * 100
+  );
+  return Number.isFinite(pct) ? pct : 0;
+});
 
 const headerCourseLabel = computed(() => {
   if (course.value?.code && course.value?.title) {
@@ -250,6 +341,26 @@ function handleToast(payload) {
   handleToast._timer = window.setTimeout(() => {
     toast.value.visible = false;
   }, 2600);
+}
+
+function handleDrillProgress(payload) {
+  if (!payload) return;
+  const {
+    current = 0,
+    total = 0,
+    state,
+  } = payload;
+
+  const isActive =
+    state === "active" ||
+    state === "in_progress" ||
+    (current > 0 && current <= total);
+
+  drillProgress.value = {
+    current,
+    total,
+    active: isActive,
+  };
 }
 
 function formatDate(dateStr) {
@@ -331,6 +442,13 @@ function handleDrillCompleted(payload) {
     drillSize: payload.drillSize,
     date: payload.date || new Date().toISOString(),
   };
+
+  // Hide live progress bar once completed
+  drillProgress.value = {
+    current: payload.total || 0,
+    total: payload.total || 0,
+    active: false,
+  };
 }
 
 function handleCourseSelect() {
@@ -389,6 +507,12 @@ watch(
     if (newId && newId !== oldId) {
       loadCourse();
       loadLastDrill();
+      // Reset progress when switching courses
+      drillProgress.value = {
+        current: 0,
+        total: 0,
+        active: false,
+      };
     }
   }
 );
@@ -410,12 +534,13 @@ watch(
     rgba(248, 250, 252, 0.92)
   );
   backdrop-filter: blur(14px);
-  margin-bottom: 0.6rem;
-  padding-bottom: 0.85rem;
+  margin-bottom: 0.3rem;
+  padding: 0.75rem 0.95rem 0.75rem;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.75rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
 }
 
 .header-left {
@@ -427,7 +552,7 @@ watch(
 .header-text {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.15rem;
 }
 
 .header-right {
@@ -435,12 +560,73 @@ watch(
   align-items: center;
 }
 
+/* Back link */
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 0.8rem;
+  padding: 0.25rem 0.65rem;
+  cursor: pointer;
+}
+
+.back-link--ghost {
+  background: rgba(15, 23, 42, 0.03);
+  border-color: rgba(148, 163, 184, 0.45);
+}
+
+.back-link--ghost:hover {
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.back-icon {
+  font-size: 0.9rem;
+}
+
+.back-text {
+  font-weight: 500;
+}
+
+/* Small eyebrow label above title */
+.eyebrow-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: #9ca3af;
+}
+
+.page-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+/* Sub line with course + meta */
+.page-sub {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  font-size: 0.82rem;
+  color: #6b7280;
+}
+
+.page-sub-main {
+  font-weight: 500;
+  color: #4b5563;
+}
+
+.page-sub-meta {
+  color: #9ca3af;
+}
+
 /* Mode pills under title */
 .mode-row {
   display: flex;
   flex-wrap: wrap;
   gap: 0.3rem;
-  margin-top: 0.15rem;
+  margin-top: 0.2rem;
 }
 
 .mode-pill {
@@ -464,24 +650,94 @@ watch(
   font-size: 0.78rem;
 }
 
+/* Thin progress bar under header */
+.drill-progress-shell {
+  padding: 0.4rem 0.95rem 0.2rem;
+  background: rgba(15, 23, 42, 0.02);
+  backdrop-filter: blur(8px);
+}
+
+.drill-progress-track {
+  position: relative;
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(148, 163, 184, 0.25);
+}
+
+.drill-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(to right, #4f46e5, #0ea5e9);
+  transition: width 0.18s ease-out;
+}
+
+.drill-progress-meta {
+  margin-top: 0.15rem;
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: #6b7280;
+}
+
 /* Exam-like background behind the main content */
 .quick-drill-page-main {
   background:
-    radial-gradient(circle at top, rgba(79, 70, 229, 0.08), transparent 55%),
-    radial-gradient(circle at bottom, rgba(14, 165, 233, 0.05), transparent 55%);
+    radial-gradient(circle at top, rgba(79, 70, 229, 0.07), transparent 55%),
+    radial-gradient(circle at bottom, rgba(14, 165, 233, 0.04), transparent 55%);
 }
 
 /* Inner shell that centers the card stack */
 .quick-drill-inner {
-  max-width: 900px;
+  max-width: 960px;
   margin: 0 auto;
-  padding: 0.75rem 0 2.5rem;
+  padding: 0.9rem 0 2.5rem;
+}
+
+/* Grid layout when no course selected */
+.quick-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.quick-grid-col--intro {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+/* Info card under StateBlock */
+.info-card {
+  padding-top: 0.9rem;
+  padding-bottom: 0.9rem;
+}
+
+.info-card-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 0.35rem;
+}
+
+.info-list {
+  list-style: disc;
+  padding-left: 1.1rem;
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.info-list li + li {
+  margin-top: 0.2rem;
 }
 
 /* Summary card */
 .quick-summary-card {
-  padding-top: 1.15rem;
-  padding-bottom: 1.1rem;
+  padding-top: 1.1rem;
+  padding-bottom: 1.05rem;
+  margin-bottom: 0.75rem;
 }
 
 .course-meta-row {
@@ -539,6 +795,11 @@ watch(
   gap: 0.1rem;
 }
 
+.stat-pill--emphasis {
+  background: #ecfdf5;
+  border-color: #bbf7d0;
+}
+
 .stat-label {
   font-size: 0.7rem;
   text-transform: uppercase;
@@ -550,6 +811,12 @@ watch(
   font-size: 0.83rem;
   font-weight: 600;
   color: #111827;
+}
+
+.stat-percent {
+  margin-left: 0.15rem;
+  font-weight: 500;
+  color: #059669;
 }
 
 /* Course picker card */
@@ -586,7 +853,7 @@ watch(
   width: 100%;
   border-radius: 0.7rem;
   border: 1px solid #d1d5db;
-  padding: 0.45rem 0.7rem;
+  padding: 0.5rem 0.75rem;
   font-size: 0.85rem;
   background: #ffffff;
 }
@@ -594,6 +861,11 @@ watch(
 .select-input:focus-visible {
   outline: 2px solid #4f46e5;
   outline-offset: 2px;
+}
+
+.helper-text {
+  font-size: 0.78rem;
+  color: #9ca3af;
 }
 
 .picker-loading {
@@ -609,12 +881,72 @@ watch(
   color: #6b7280;
 }
 
+/* Drill card shell + header */
+.quick-drill-card-shell {
+  margin-top: 0.35rem;
+}
+
+.quick-drill-card-header {
+  margin-bottom: 0.4rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.quick-drill-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.quick-drill-sub {
+  font-size: 0.82rem;
+  color: #6b7280;
+}
+
+/* Keyboard shortcut hints */
+.shortcut-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.shortcut-list li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.18rem 0.45rem;
+  border-radius: 999px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  font-size: 0.75rem;
+  color: #4b5563;
+}
+
+.shortcut-key {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+  padding: 0.05rem 0.3rem;
+  border-radius: 999px;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  font-size: 0.72rem;
+}
+
+.shortcut-label {
+  white-space: nowrap;
+}
+
 /* Small screens */
 @media (max-width: 640px) {
   .page-header--quick-drill {
     flex-direction: column;
     align-items: stretch;
     gap: 0.6rem;
+    padding-left: 0;
+    padding-right: 0;
   }
 
   .header-left {
@@ -625,8 +957,12 @@ watch(
     justify-content: flex-start;
   }
 
-  .mode-row {
-    margin-top: 0.1rem;
+  .quick-drill-inner {
+    padding-bottom: 2rem;
+  }
+
+  .quick-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .stats-row {
@@ -638,8 +974,14 @@ watch(
     width: 100%;
   }
 
-  .quick-drill-inner {
-    padding-bottom: 2rem;
+  .drill-progress-shell {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .quick-drill-card-header {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 </style>

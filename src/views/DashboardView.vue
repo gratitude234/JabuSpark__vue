@@ -1,34 +1,86 @@
 ﻿<template>
-  <main class="min-h-screen bg-slate-50">
+  <main class="relative min-h-screen bg-slate-50">
+    <!-- Top loading bar -->
+    <div
+      v-if="loading"
+      class="pointer-events-none fixed inset-x-0 top-0 z-30 h-0.5 bg-indigo-500/80"
+    >
+      <div class="h-full w-1/3 animate-[pulse_1.2s_ease-in-out_infinite]" />
+    </div>
+
     <section class="mx-auto max-w-6xl px-4 py-6 sm:py-8 lg:py-10">
-      <!-- Top header -->
-      <header class="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Dashboard
+      <!-- Error banner -->
+      <div
+        v-if="error"
+        class="mb-4 flex items-start justify-between gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs text-red-800"
+      >
+        <div class="space-y-1">
+          <p class="font-semibold">
+            Couldn&apos;t load your dashboard
           </p>
-          <h1 class="mt-1 text-2xl font-semibold text-slate-900 sm:text-3xl">
+          <p class="text-[11px] leading-snug">
+            {{ error }} Please check your connection and try again.
+          </p>
+        </div>
+        <button
+          type="button"
+          class="rounded-full border border-red-200 bg-white/60 px-3 py-1 text-[11px] font-medium text-red-700 shadow-sm transition hover:bg-white"
+          @click="loadDashboard"
+        >
+          Retry
+        </button>
+      </div>
+
+      <!-- Top header -->
+      <header
+        class="mb-6 flex flex-wrap items-start justify-between gap-4 border-b border-slate-200/60 pb-4"
+      >
+        <div class="space-y-1.5">
+          <div class="inline-flex items-center gap-2">
+            <p
+              class="inline-flex items-center gap-1 rounded-full bg-slate-900 text-[10px] font-semibold uppercase tracking-wide text-slate-50 px-2.5 py-1"
+            >
+              <span class="text-[11px]">📚</span>
+              Dashboard
+            </p>
+            <span
+              v-if="meta.semester || meta.week"
+              class="text-[11px] rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600"
+            >
+              <span v-if="meta.semester">
+                {{ meta.semester }}
+              </span>
+              <span v-if="meta.semester && meta.week">·</span>
+              <span v-if="meta.week">
+                Week {{ meta.week }}
+              </span>
+            </span>
+          </div>
+
+          <h1 class="text-2xl font-semibold text-slate-900 sm:text-3xl">
             Good {{ timeOfDay }}, {{ displayName }}
           </h1>
-          <p class="mt-2 text-sm text-slate-600">
-            Start with a 5–10 question quick drill and build your streak.
+          <p class="max-w-xl text-sm text-slate-600">
+            Jump into a 5–10 question quick drill, keep your streak alive, and stay ready for
+            upcoming assessments.
           </p>
         </div>
 
         <div
-          class="flex items-center gap-3 rounded-full bg-white px-3 py-2 text-xs text-slate-700 shadow-sm"
+          class="flex items-center gap-3 rounded-2xl bg-white px-3.5 py-2.5 text-xs text-slate-700 shadow-sm ring-1 ring-slate-200/70"
         >
           <span
-            class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-indigo-50 text-sm font-semibold text-indigo-700"
+            class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-indigo-50 text-sm font-semibold text-indigo-700"
           >
             {{ initials }}
           </span>
           <div class="flex flex-col">
-            <span class="font-semibold text-slate-900">
+            <span class="text-sm font-semibold text-slate-900">
               {{ displayName }}
             </span>
             <span class="text-[11px] text-slate-500">
-              {{ roleLabel }} · {{ level }}
+              {{ roleLabel }}
+              <span v-if="level">· {{ level }}</span>
             </span>
           </div>
         </div>
@@ -40,20 +92,27 @@
         <div class="space-y-6">
           <!-- Hero card -->
           <section
-            class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-sky-500 p-6 text-white shadow-lg transition-all duration-500 ease-out transform"
+            class="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-800 to-sky-500 p-6 text-white shadow-lg transition-all duration-500 ease-out transform"
             :class="loaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'"
             aria-labelledby="hero-heading"
           >
+            <!-- soft glow -->
             <div class="pointer-events-none absolute inset-0 opacity-40">
-              <div class="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-indigo-400 blur-3xl" />
-              <div class="absolute -left-10 bottom-0 h-40 w-40 rounded-full bg-sky-400 blur-3xl" />
+              <div
+                class="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-indigo-400 blur-3xl"
+              />
+              <div
+                class="absolute -left-10 bottom-0 h-40 w-40 rounded-full bg-sky-400 blur-3xl"
+              />
             </div>
 
-            <div class="relative flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+            <div
+              class="relative flex flex-col gap-6 md:flex-row md:items-center md:justify-between"
+            >
               <div class="space-y-4">
                 <div>
-                  <p class="text-xs font-semibold uppercase tracking-wide text-indigo-100">
-                    Dashboard
+                  <p class="text-[11px] font-semibold uppercase tracking-wide text-indigo-100">
+                    Primary action
                   </p>
                   <h2
                     id="hero-heading"
@@ -61,9 +120,9 @@
                   >
                     Ready for a quick drill, {{ displayName }}?
                   </h2>
-                  <p class="mt-2 max-w-md text-sm text-indigo-100">
-                    Build a consistent study habit with short drills. Keep your streak alive and stay
-                    ahead of upcoming assessments.
+                  <p class="mt-2 max-w-md text-sm text-indigo-100/90">
+                    Short, focused drills help you build a daily study habit. Keep your streak alive
+                    and track your progress in minutes, not hours.
                   </p>
                 </div>
 
@@ -104,10 +163,12 @@
                 <div class="flex flex-wrap gap-3">
                   <button
                     type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-indigo-700 shadow-md transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-indigo-600"
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-indigo-700 shadow-md transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:ring-offset-2 focus-visible:ring-offset-indigo-600"
                     @click="startQuickDrill"
                   >
-                    <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-[11px]">
+                    <span
+                      class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-[11px]"
+                    >
                       ▶
                     </span>
                     Start quick drill
@@ -115,10 +176,12 @@
 
                   <button
                     type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full border border-indigo-100/60 bg-indigo-500/30 px-4 py-2 text-sm font-semibold text-white backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:bg-indigo-500/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-indigo-600"
+                    class="inline-flex items-center justify-center gap-2 rounded-full border border-indigo-100/70 bg-indigo-500/30 px-4 py-2.5 text-sm font-semibold text-white backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:bg-indigo-500/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-2 focus-visible:ring-offset-indigo-600"
                     @click="hasRecentDrills ? continueLastSession() : goToCourses()"
                   >
-                    <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/15 text-[11px]">
+                    <span
+                      class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/15 text-[11px]"
+                    >
                       ↺
                     </span>
                     <span>
@@ -171,10 +234,10 @@
                   id="today-heading"
                   class="text-sm font-semibold text-slate-900"
                 >
-                  Today
+                  Today at a glance
                 </h2>
                 <p class="mt-1 text-xs text-slate-500">
-                  This week&apos;s drills, your next assessment, and last activity.
+                  This week&apos;s drills, your next assessment, and your latest activity.
                 </p>
               </div>
               <p class="text-xs text-slate-500">
@@ -185,9 +248,14 @@
               </p>
             </header>
 
-            <div class="mt-4 grid gap-4 sm:grid-cols-3">
+            <!-- Compact horizontal cards on mobile, 3-column grid on desktop -->
+            <div
+              class="mt-4 flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory sm:grid sm:grid-cols-3 sm:gap-4 sm:overflow-visible sm:pb-0"
+            >
               <!-- Weekly drills -->
-              <div class="flex flex-col gap-2">
+              <div
+                class="flex min-w-[12rem] flex-col gap-2 snap-start rounded-2xl bg-slate-50 p-3 text-xs shadow-sm ring-1 ring-slate-100 sm:min-w-0"
+              >
                 <p class="text-xs font-semibold text-slate-700">
                   This week’s drills
                 </p>
@@ -208,7 +276,9 @@
               </div>
 
               <!-- Next assessment -->
-              <div class="flex flex-col gap-2">
+              <div
+                class="flex min-w-[12rem] flex-col gap-2 snap-start rounded-2xl bg-slate-50 p-3 text-xs shadow-sm ring-1 ring-slate-100 sm:min-w-0"
+              >
                 <p class="text-xs font-semibold text-slate-700">
                   Next assessment
                 </p>
@@ -232,7 +302,9 @@
               </div>
 
               <!-- Last activity -->
-              <div class="flex flex-col gap-2">
+              <div
+                class="flex min-w-[12rem] flex-col gap-2 snap-start rounded-2xl bg-slate-50 p-3 text-xs shadow-sm ring-1 ring-slate-100 sm:min-w-0"
+              >
                 <p class="text-xs font-semibold text-slate-700">
                   Last activity
                 </p>
@@ -392,9 +464,12 @@
               </p>
             </header>
 
-            <div class="mt-4 grid gap-3 sm:grid-cols-3">
+            <!-- Horizontal scroll on mobile, grid on larger screens -->
+            <div
+              class="mt-4 flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory sm:grid sm:grid-cols-3 sm:gap-3 sm:overflow-visible sm:pb-0"
+            >
               <div
-                class="flex flex-col gap-1 rounded-xl bg-indigo-50 p-3 text-xs shadow-sm"
+                class="flex min-w-[11rem] flex-col gap-1 snap-start rounded-xl bg-indigo-50 p-3 text-xs shadow-sm sm:min-w-0"
               >
                 <p class="text-[11px] font-medium text-indigo-700">
                   Courses this semester
@@ -408,7 +483,7 @@
               </div>
 
               <div
-                class="flex flex-col gap-1 rounded-xl bg-sky-50 p-3 text-xs shadow-sm"
+                class="flex min-w-[11rem] flex-col gap-1 snap-start rounded-xl bg-sky-50 p-3 text-xs shadow-sm sm:min-w-0"
               >
                 <p class="text-[11px] font-medium text-sky-700">
                   Practice questions
@@ -422,7 +497,7 @@
               </div>
 
               <div
-                class="flex flex-col gap-1 rounded-xl bg-emerald-50 p-3 text-xs shadow-sm"
+                class="flex min-w-[11rem] flex-col gap-1 snap-start rounded-xl bg-emerald-50 p-3 text-xs shadow-sm sm:min-w-0"
               >
                 <p class="text-[11px] font-medium text-emerald-700">
                   Average drill score
@@ -460,7 +535,9 @@
                 v-if="!upcomingAssessments.length"
                 class="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 p-4 text-xs"
               >
-                <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+                <p
+                  class="text-[11px] font-semibold uppercase tracking-wide text-slate-600"
+                >
                   Nothing scheduled yet
                 </p>
                 <p class="mt-1 text-[12px] font-medium text-slate-900">
@@ -475,7 +552,7 @@
                 <li
                   v-for="item in upcomingAssessments"
                   :key="item.id"
-                  class="flex items-start justify-between gap-3 rounded-xl border border-slate-200 px-3 py-2.5 transition-all duration-200 hover:border-indigo-300 hover:bg-indigo-50/60"
+                  class="flex items-start justify-between gap-3 rounded-xl border border-slate-200 px-3 py-2.5 transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-300 hover:bg-indigo-50/60"
                 >
                   <div>
                     <p class="text-[12px] font-semibold text-slate-900">
@@ -519,7 +596,9 @@
                 class="flex flex-col items-start gap-3 rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div>
-                  <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+                  <p
+                    class="text-[11px] font-semibold uppercase tracking-wide text-slate-600"
+                  >
                     No drills yet
                   </p>
                   <p class="mt-1 text-[12px] font-medium text-slate-900">
@@ -534,7 +613,9 @@
                   class="mt-2 inline-flex items-center justify-center gap-2 rounded-full bg-indigo-600 px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-indigo-700 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50 sm:mt-0"
                   @click="startQuickDrill"
                 >
-                  <span class="inline-flex h-4 w-4 items-center justify-center rounded-full bg-indigo-500 text-[10px]">
+                  <span
+                    class="inline-flex h-4 w-4 items-center justify-center rounded-full bg-indigo-500 text-[10px]"
+                  >
                     ▶
                   </span>
                   Start your first drill
@@ -593,6 +674,7 @@
     </section>
   </main>
 </template>
+
 <script setup>
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
@@ -622,6 +704,8 @@ const stats = ref({
   questions: 0,
   avg_score: null,
 });
+
+// optional meta block (for future: level, semester, etc.)
 const meta = ref({
   week: null,
   semester: null,
@@ -630,11 +714,12 @@ const meta = ref({
   completedDrillsThisWeek: 0,
 });
 
-// Streak info (from API)
+// Streak info from API
 const streak = ref({
   current: 0,
   longest: 0,
-  maintainedToday: false,
+  this_week: 0,
+  week_goal: 10,
 });
 
 // What the UI expects
@@ -654,7 +739,6 @@ const recentDrills = ref([]);
 // ---------- COMPUTED ----------
 
 const displayName = computed(() => {
-  // Prefer API name if available, fallback to prop
   return user.value?.name || props.userName || "Student";
 });
 
@@ -723,12 +807,19 @@ async function loadDashboard() {
     user.value = data.user || null;
 
     // Stats
-    stats.value = data.stats || stats.value;
-    coursesCount.value = stats.value.courses ?? 0;
-    practiceQuestionsCount.value = stats.value.questions ?? 0;
-    averageScore.value = stats.value.avg_score ?? 0;
+    if (data.stats) {
+      stats.value = data.stats;
+    }
 
-    // Meta / weekly drills / level
+    const s = stats.value || {};
+    coursesCount.value = Number(s.courses) || 0;
+    practiceQuestionsCount.value = Number(s.questions) || 0;
+    averageScore.value =
+      s.avg_score !== null && s.avg_score !== undefined
+        ? Number(s.avg_score)
+        : 0;
+
+    // Meta / level (optional, only if backend sends it)
     if (data.meta) {
       meta.value = {
         ...meta.value,
@@ -736,31 +827,34 @@ async function loadDashboard() {
       };
     }
 
-    weeklyDrills.value.current = meta.value.completedDrillsThisWeek || 0;
-    weeklyDrills.value.target = meta.value.targetDrillsThisWeek || 10;
-    level.value = meta.value.level || level.value;
+    if (meta.value.level) {
+      level.value = meta.value.level;
+    }
 
-    // Streak
+    // default weekly drills from meta if present
+    if (meta.value.completedDrillsThisWeek != null) {
+      weeklyDrills.value.current = meta.value.completedDrillsThisWeek;
+    }
+    if (meta.value.targetDrillsThisWeek != null) {
+      weeklyDrills.value.target = meta.value.targetDrillsThisWeek;
+    }
+
+    // Streak from backend
     if (data.streak) {
       streak.value = {
         ...streak.value,
         ...data.streak,
       };
-    } else {
-      // Fallback: mark maintainedToday if last drill was today
-      const last = data.recent_drills?.[0];
-      if (last?.created_at) {
-        const today = new Date();
-        const lastDate = new Date(last.created_at);
-        const sameDay =
-          lastDate.getFullYear() === today.getFullYear() &&
-          lastDate.getMonth() === today.getMonth() &&
-          lastDate.getDate() === today.getDate();
-        streak.value.maintainedToday = sameDay;
+
+      if (typeof data.streak.this_week === "number") {
+        weeklyDrills.value.current = data.streak.this_week;
+      }
+      if (typeof data.streak.week_goal === "number") {
+        weeklyDrills.value.target = data.streak.week_goal;
       }
     }
 
-    // Upcoming assessments -> normalize into the shape the UI expects
+    // Upcoming assessments
     const exams = Array.isArray(data.upcoming_exams) ? data.upcoming_exams : [];
     upcomingAssessments.value = exams.map((e, index) => ({
       id: e.id ?? index,
@@ -773,20 +867,33 @@ async function loadDashboard() {
     }));
     nextAssessment.value = upcomingAssessments.value[0] || null;
 
-    // Recent drills -> normalize
+    // Recent drills
     const drillsRaw = Array.isArray(data.recent_drills)
       ? data.recent_drills
       : [];
-    recentDrills.value = drillsRaw.map((d, index) => ({
-      id: d.id ?? index,
-      courseCode: d.course_code || d.courseCode || "COURSE",
-      courseTitle: d.course_title || d.courseTitle || "Drill session",
-      score: typeof d.score === "number" ? d.score : Number(d.score) || 0,
-      correct: d.num_correct ?? d.numCorrect ?? 0,
-      total: d.num_questions ?? d.numQuestions ?? 0,
-      date: d.created_at || d.date,
-      courseId: d.course_id || d.courseId,
-    }));
+
+    recentDrills.value = drillsRaw.map((d, index) => {
+      const total = d.num_questions ?? d.numQuestions ?? 0;
+      const correct = d.num_correct ?? d.numCorrect ?? 0;
+      let score =
+        typeof d.score === "number" ? d.score : Number(d.score ?? NaN);
+
+      if (!Number.isFinite(score) && total > 0) {
+        score = Math.round((correct / total) * 100);
+      }
+
+      return {
+        id: d.id ?? index,
+        courseCode: d.course_code || d.courseCode || "COURSE",
+        courseTitle:
+          d.course_title || d.courseTitle || d.title || "Drill session",
+        score: score || 0,
+        correct,
+        total,
+        date: d.created_at || d.date,
+        courseId: d.course_id || d.courseId,
+      };
+    });
   } catch (err) {
     console.error(err);
     error.value = "Could not load dashboard.";
@@ -795,7 +902,6 @@ async function loadDashboard() {
     }
   } finally {
     loading.value = false;
-    // small delay so entrance transitions feel natural
     requestAnimationFrame(() => {
       loaded.value = true;
     });
@@ -821,7 +927,6 @@ function goToCourses() {
 }
 
 function openMaterials() {
-  // Adjust this route to match your materials tab/page
   router.push({ name: "courses", query: { tab: "materials" } });
 }
 
@@ -848,7 +953,6 @@ function reviewDrill(drillId) {
       query: { drillId },
     });
   } else {
-    // Fallback: open quick-drill review
     router.push({ name: "quick-drill", query: { drillId } });
   }
 }
