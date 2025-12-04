@@ -1,22 +1,26 @@
 // src/services/materials.js
-import api from "../api";
+import api from "./api";
 
+// Get materials for a course
 export async function getMaterials(courseId) {
   const res = await api.get("/materials.php", {
     params: { course_id: courseId },
   });
-  return res.data.materials || [];
+  return res.data;
 }
 
-// For later (course rep console)
-export async function uploadMaterial(courseId, file, title = "") {
+// Upload a new material (admin / course rep)
+export async function uploadMaterial({ courseId, file, title }) {
   const formData = new FormData();
   formData.append("course_id", courseId);
+  formData.append("title", title || file.name);
   formData.append("file", file);
-  if (title) formData.append("title", title);
 
-  const res = await api.post("/materials.php", formData, {
-    headers: { "Content-Type": "multipart/form-data" },
+  const res = await api.post("/materials_upload.php", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
   });
-  return res.data.material;
+
+  return res.data; // newly created material
 }

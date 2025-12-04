@@ -45,7 +45,8 @@
         <div class="add-card-header">
           <h2>Add course</h2>
           <p class="hint">
-            First pick a department (and level). Then add courses for that cohort.
+            First pick a department and, if you like, a level. New courses will be saved
+            with the selected level.
           </p>
         </div>
 
@@ -76,16 +77,12 @@
             </div>
             <div class="field">
               <label>Level</label>
-              <select
-                v-model.number="form.level"
+              <input
+                type="text"
                 class="field-input"
-                :disabled="!selectedDeptId || saving"
-              >
-                <option :value="0">Use filter level ({{ selectedLevelLabel }})</option>
-                <option v-for="lvl in levelOptions" :key="lvl" :value="lvl">
-                  {{ lvl }} level
-                </option>
-              </select>
+                :value="selectedLevel ? selectedLevel + ' level' : 'No specific level (all levels)'"
+                disabled
+              />
             </div>
           </div>
 
@@ -144,7 +141,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, onMounted } from "vue";
 import { fetchDepartments } from "../services/auth";
 import { adminListCourses, adminCreateCourse } from "../services/admin";
 
@@ -161,15 +158,10 @@ const courses = ref([]);
 const form = ref({
   title: "",
   code: "",
-  level: 0,
 });
 
 // You can adjust these level options to match JABU
 const levelOptions = [100, 200, 300, 400, 500, 600];
-
-const selectedLevelLabel = computed(() => {
-  return selectedLevel.value ? `${selectedLevel.value} level` : "all levels";
-});
 
 // ---------- data loading ----------
 async function loadDepartments() {
@@ -218,10 +210,8 @@ async function handleCreate() {
       department_id: Number(selectedDeptId.value),
       title: form.value.title.trim(),
       code: form.value.code.trim(),
-      level:
-        form.value.level && form.value.level !== 0
-          ? form.value.level
-          : selectedLevel.value || null,
+      // use the filter level; if "All levels", save null
+      level: selectedLevel.value || null,
     };
 
     const newCourse = await adminCreateCourse(payload);
@@ -229,7 +219,7 @@ async function handleCreate() {
     // Put new course at the top of the list
     courses.value.unshift(newCourse);
 
-    // Reset just title/code (keep level)
+    // Reset title/code
     form.value.title = "";
     form.value.code = "";
   } catch (e) {
@@ -246,6 +236,7 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+/* same styles as before */
 .page {
   max-width: 960px;
   margin: 0 auto;

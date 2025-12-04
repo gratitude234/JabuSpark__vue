@@ -7,3 +7,142 @@
     @apply bg-page text-brand-dark font-sans;
   }
 }
+
+/* App shell layout + header styling */
+
+.app-shell {
+  min-height: 100vh;
+  background: radial-gradient(circle at top left, #e0f2fe 0, #eef2ff 40%, #f9fafb 100%);
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  backdrop-filter: blur(18px);
+  background: rgba(248, 250, 252, 0.9);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+}
+
+.app-header-inner {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  justify-content: space-between;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  text-decoration: none;
+}
+
+.brand-mark {
+  height: 2.4rem;
+  width: 2.4rem;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 30% 20%, #a5b4fc, #4f46e5);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #0f172a;
+}
+
+.brand-tagline {
+  font-size: 0.7rem;
+  color: #6b7280;
+}
+
+.main-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+}
+
+.nav-link {
+  padding: 0.4rem 0.75rem;
+  border-radius: 9999px;
+  color: #4b5563;
+  text-decoration: none;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.nav-link:hover {
+  background-color: rgba(148, 163, 184, 0.12);
+}
+
+.nav-link.router-link-active {
+  background: linear-gradient(135deg, #4f46e5, #6366f1);
+  color: #fff;
+}
+
+.nav-link-disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: 9999px;
+  background-color: rgba(15, 23, 42, 0.03);
+  border: 1px solid rgba(148, 163, 184, 0.5);
+}
+
+.user-avatar {
+  height: 1.9rem;
+  width: 1.9rem;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 30% 20%, #4f46e5, #1d4ed8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.user-meta {
+  display: flex;
+  flex-direction: column;
+}
+
+.user-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.user-role {
+  font-size: 0.7rem;
+  color: #6b7280;
+}
+
+.app-main {
+  max-width: 1120px;
+  margin: 1.25rem auto 2.5rem;
+  padding: 0 1rem;
+  flex: 1;
+}

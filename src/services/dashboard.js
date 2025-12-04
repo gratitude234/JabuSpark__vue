@@ -1,5 +1,5 @@
 // src/services/dashboard.js
-import api from "../api";
+import api from "./api";
 
 export async function getDashboardSummary() {
   const res = await api.get("/dashboard/summary.php");

@@ -73,7 +73,18 @@
         </button>
       </form>
 
-      <p class="mt-4 text-[11px] text-slate-500 text-center">
+      <!-- Link to sign up -->
+      <p class="mt-4 text-[11px] text-slate-600 text-center">
+        Don’t have an account yet?
+        <RouterLink
+          to="/register"
+          class="font-semibold text-brand hover:underline hover:text-indigo-600"
+        >
+          Create one
+        </RouterLink>
+      </p>
+
+      <p class="mt-2 text-[11px] text-slate-500 text-center">
         Jabuspark is in early beta for JABU students. Other schools coming soon.
       </p>
     </div>
@@ -87,7 +98,7 @@ import { login } from "../services/auth";
 
 const router = useRouter();
 
-const email = ref("");        // <-- no more teststudent default
+const email = ref(""); // no default teststudent
 const password = ref("");
 const loading = ref(false);
 const error = ref("");

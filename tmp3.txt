@@ -1,0 +1,387 @@
+    meta: `${e.date} · ${e.type}`,
+    badge: `${e.daysLeft}d left`,
+  };
+});
+
+const lastActivitySummary = computed(() => {
+  if (!recentDrills.value.length) return null;
+  const d = recentDrills.value[0];
+
+  return {
+    title: d.course_title || "Last drill",
+    meta: `${d.num_correct}/${d.num_questions} correct · ${d.score}%`,
+    time: formatDate(d.created_at),
+  };
+});
+
+// Streak progress
+const streakProgress = computed(() => {
+  const current = streak.value.current || 0;
+
+  // Milestones
+  let next = 7;
+  if (current >= 7 && current < 30) next = 30;
+  else if (current >= 30 && current < 90) next = 90;
+  else if (current >= 90) next = current + 10;
+
+  let pct = Math.round((current / next) * 100);
+  if (pct > 100) pct = 100;
+  if (pct < 0) pct = 0;
+
+  let label =
+    "Keep answering at least one quick drill each day to grow your streak.";
+
+  if (current === 0) {
+    label = "Do one quick drill today to start your streak.";
+  } else if (current > 0 && current < 3) {
+    label = "Nice start. Keep it up for the next few days.";
+  } else if (current >= 3 && current < 7) {
+    label = "You’re close to a 7-day streak badge. Don’t stop now.";
+  } else if (current >= 7 && current < 30) {
+    label = "Strong streak. Aim for a 30-day run this month.";
+  } else if (current >= 30 && current < 90) {
+    label = "Elite focus. You’re building a serious habit.";
+  } else if (current >= 90) {
+    label = "God-mode consistency. Protect this streak at all costs.";
+  }
+
+  return { next, pct, label };
+});
+
+// Recommended next action
+const recommendedAction = computed(() => {
+  const drills = recentDrills.value;
+  if (!drills || !drills.length) return null;
+
+  const windowSize = 5;
+  const slice = drills.slice(0, windowSize);
+  if (!slice.length) return null;
+
+  const worst = [...slice].sort((a, b) => {
+    const sa = typeof a.score === "number" ? a.score : 0;
+    const sb = typeof b.score === "number" ? b.score : 0;
+    return sa - sb;
+  })[0];
+
+  if (!worst) return null;
+
+  const score = typeof worst.score === "number" ? worst.score : 0;
+  const isLowScore = score < 70;
+  const courseCode = worst.course_code || "";
+  const courseTitle = worst.course_title || "this course";
+
+  const title = `You scored ${score}% in ${courseCode || courseTitle}.`;
+
+  const subtitle = isLowScore
+    ? "Review the questions you missed now while it’s still fresh."
+    : "Do a quick review to lock in what you already know.";
+
+  const chip = isLowScore ? "Needs revision" : "On track";
+
+  return {
+    drillId: worst.id,
+    title,
+    subtitle,
+    chip,
+    isLowScore,
+  };
+});
+
+// Score trend mini chart
+const scoreTrend = computed(() => {
+  const drills = recentDrills.value;
+  if (!drills || !drills.length) return [];
+
+  // Take last up to 7 drills, oldest on the left
+  const slice = drills.slice(0, 7).slice().reverse();
+
+  return slice.map((d, index) => {
+    const rawScore = typeof d.score === "number" ? d.score : 0;
+    const score = Math.min(Math.max(rawScore, 0), 100);
+    const height = Math.max(score, 8);
+
+    let tone = "low";
+    if (score >= 70) tone = "high";
+    else if (score >= 50) tone = "mid";
+
+    return {
+      id: d.id ?? index,
+      score,
+      height,
+      tone,
+      label: d.course_code || `Drill ${slice.length - index}`,
+    };
+  });
+});
+
+// Focus courses (weakest averages)
+const focusCourses = computed(() => {
+  const drills = recentDrills.value;
+  if (!drills || !drills.length) return [];
+
+  const byCourse = new Map();
+
+  drills.forEach((d) => {
+    const code = d.course_code || "Unknown";
+    const title = d.course_title || "Course";
+    const key = `${code}||${title}`;
+
+    const score = typeof d.score === "number" ? d.score : 0;
+    const createdAt =
+      d.created_at && !Number.isNaN(new Date(d.created_at).getTime())
+        ? new Date(d.created_at)
+        : null;
+
+    if (!byCourse.has(key)) {
+      byCourse.set(key, {
+        courseCode: code,
+        courseTitle: title,
+        count: 0,
+        totalScore: 0,
+        lastDrillAt: null,
+      });
+    }
+
+    const entry = byCourse.get(key);
+    entry.count += 1;
+    entry.totalScore += score;
+
+    if (
+      createdAt &&
+      (!entry.lastDrillAt || createdAt > entry.lastDrillAt)
+    ) {
+      entry.lastDrillAt = createdAt;
+    }
+
+    byCourse.set(key, entry);
+  });
+
+  let list = Array.from(byCourse.values()).map((entry) => {
+    const avgScore = entry.count
+      ? Math.round(entry.totalScore / entry.count)
+      : 0;
+    return {
+      ...entry,
+      avgScore,
+    };
+  });
+
+  list = list.filter((entry) => entry.count >= 1);
+  list.sort((a, b) => a.avgScore - b.avgScore);
+
+  return list.slice(0, 3);
+});
+
+// Activity timeline
+function startOfDay(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+const activityTimeline = computed(() => {
+  const drills = recentDrills.value;
+  if (!drills || !drills.length) return [];
+
+  const now = new Date();
+  const todayStart = startOfDay(now);
+
+  const sectionsMap = {
+    Today: [],
+    Yesterday: [],
+    "This week": [],
+    Older: [],
+  };
+
+  drills.forEach((d) => {
+    if (!d.created_at) return;
+    const dt = new Date(d.created_at);
+    if (Number.isNaN(dt.getTime())) return;
+
+    const drillDay = startOfDay(dt);
+    const diffMs = todayStart.getTime() - drillDay.getTime();
+    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+    let bucket = "Older";
+    if (diffDays === 0) bucket = "Today";
+    else if (diffDays === 1) bucket = "Yesterday";
+    else if (diffDays <= 7) bucket = "This week";
+
+    const score = typeof d.score === "number" ? d.score : 0;
+    const isGood = score >= 70;
+
+    sectionsMap[bucket].push({
+      id: d.id,
+      courseCode: d.course_code,
+      courseTitle: d.course_title || "Drill session",
+      score,
+      numCorrect: d.num_correct,
+      numQuestions: d.num_questions,
+      timestamp: dt,
+      statusLabel: isGood ? "On track" : "Needs revision",
+      statusTone: isGood ? "good" : "warn",
+    });
+  });
+
+  const orderedLabels = ["Today", "Yesterday", "This week", "Older"];
+
+  return orderedLabels
+    .map((label) => ({
+      label,
+      items: sectionsMap[label],
+    }))
+    .filter((section) => section.items.length > 0);
+});
+
+function formatTimeShort(dateObj) {
+  if (!(dateObj instanceof Date) || Number.isNaN(dateObj.getTime())) return "";
+  return dateObj.toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+// ========== API / DATA LOAD ==========
+
+async function loadDashboard() {
+  loading.value = true;
+  error.value = "";
+  try {
+    const data = await getDashboardSummary();
+
+    user.value = data.user || null;
+    stats.value = data.stats || stats.value;
+    recentDrills.value = data.recent_drills || [];
+
+    // Optional: meta from API
+    if (data.meta) {
+      meta.value = {
+        ...meta.value,
+        ...data.meta,
+      };
+    }
+
+    // Optional: streak from API
+    if (data.streak) {
+      streak.value = {
+        ...streak.value,
+        ...data.streak,
+      };
+    } else {
+      // Fallback streak estimation (very rough)
+      const last = recentDrills.value[0];
+      if (last?.created_at) {
+        const today = new Date();
+        const lastDate = new Date(last.created_at);
+        const sameDay =
+          lastDate.getFullYear() === today.getFullYear() &&
+          lastDate.getMonth() === today.getMonth() &&
+          lastDate.getDate() === today.getDate();
+
+        streak.value.maintainedToday = sameDay;
+      }
+    }
+
+    // Fallback: estimate completedDrillsThisWeek from recent drills
+    if (!meta.value.completedDrillsThisWeek) {
+      const now = new Date();
+      const weekAgo = new Date();
+      weekAgo.setDate(now.getDate() - 7);
+
+      meta.value.completedDrillsThisWeek = recentDrills.value.filter((d) => {
+        const dt = new Date(d.created_at);
+        if (Number.isNaN(dt.getTime())) return false;
+        return dt >= weekAgo && dt <= now;
+      }).length;
+    }
+
+    // Upcoming exams (mock or from API)
+    if (Array.isArray(data.upcoming_exams)) {
+      upcomingExams.value = data.upcoming_exams;
+    } else {
+      // Simple mock; you can remove when backend is ready
+      upcomingExams.value = [
+        {
+          id: 1,
+          course_code: "CSC 201",
+          title: "Mid-semester test",
+          date: "12 Mar, 9:00am",
+          type: "Test",
+          daysLeft: 5,
+        },
+        {
+          id: 2,
+          course_code: "MTH 203",
+          title: "Quiz on Calculus",
+          date: "15 Mar, 2:00pm",
+          type: "Quiz",
+          daysLeft: 8,
+        },
+      ];
+    }
+  } catch (e) {
+    console.error(e);
+    if (e.response?.status === 401) {
+      router.push("/login");
+    } else {
+      error.value = "Failed to load dashboard.";
+    }
+  } finally {
+    loading.value = false;
+  }
+}
+
+// ========== ACTIONS / NAVIGATION ==========
+
+function logout() {
+  localStorage.removeItem("jabuspark_token");
+  router.push("/login");
+}
+
+function goToCourses() {
+  router.push("/courses");
+}
+
+function goToCourseFocus(courseCode) {
+  if (!courseCode) {
+    router.push("/courses");
+    return;
+  }
+  router.push({
+    path: "/courses",
+    query: { focus: courseCode },
+  });
+}
+
+// TODO: Update these routes to match your actual route names/paths
+function startQuickDrill() {
+  router.push("/quick-drill");
+}
+
+function goToLastDrill() {
+  const last = recentDrills.value[0];
+  if (!last) {
+    goToCourses();
+    return;
+  }
+  router.push(`/drills/${last.id}`);
+}
+
+function goToMaterials() {
+  router.push("/materials");
+}
+
+function reviewDrill(drillId) {
+  if (!drillId) return;
+  router.push(`/drills/${drillId}`);
+}
+
+// ========== LIFECYCLE ==========
+
+onMounted(() => {
+  const token = localStorage.getItem("jabuspark_token");
+  if (!token) {
+    router.push("/login");
+  } else {
+    loadDashboard();
+  }
+});
+</script>

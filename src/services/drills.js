@@ -1,4 +1,5 @@
-import api from "../api";
+// src/services/drills.js
+import api from "./api";
 
 export async function startDrill(courseId, numQuestions) {
   const res = await api.post("/drills/start.php", {
@@ -13,5 +14,5 @@ export async function submitDrill(drillId, answers) {
     drill_id: drillId,
     answers,
   });
-  return res.data; // {num_correct, num_questions, score}
+  return res.data; // { num_correct, num_questions, score }
 }

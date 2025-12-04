@@ -1,5 +1,5 @@
 // src/services/courses.js
-import api from "../api";
+import api from "./api";
 
 // Get all courses for the logged-in student
 export async function getCourses() {

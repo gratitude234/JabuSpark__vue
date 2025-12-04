@@ -1,21 +1,38 @@
 // src/services/api.js
 import axios from "axios";
 
-// Change this to your real API base if needed
+// Base URL for your API (Truehost / cPanel)
+const baseURL =
+  import.meta.env.VITE_API_BASE_URL || "https://jabumarket.com.ng/api";
+
 const api = axios.create({
-  baseURL:
-    import.meta.env.VITE_API_BASE_URL ||
-    "https://jabumarket.com.ng/api", // your cPanel API root
+  baseURL, // e.g. https://jabumarket.com.ng/api
+  headers: {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  },
   withCredentials: false,
 });
 
-// Attach token automatically (same token you use for dashboard/courses)
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("jabuspark_token");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+// Attach token automatically
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("jabuspark_token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Optional: basic response error handling
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // You can do global 401 handling here later if you want
+    return Promise.reject(error);
   }
-  return config;
-});
+);
 
 export default api;

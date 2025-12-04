@@ -30,12 +30,13 @@ export function logout() {
 }
 
 /**
- * Fetch departments for the registration form
- * GET /departments.php  →  [{ id, name, faculty, code }, ...]
+ * Fetch departments for the registration form and admin page
+ * GET /departments/list.php  →  { departments: [{ id, name, faculty?, code? }, ...] }
  */
 export async function fetchDepartments() {
-  const res = await api.get("/departments.php");
-  return res.data; // your RegisterView expects an array
+  const res = await api.get("/departments/list.php");
+  // both RegisterView and AdminCoursesView expect an array of departments
+  return res.data.departments || [];
 }
 
 /**
