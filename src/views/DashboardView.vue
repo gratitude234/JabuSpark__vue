@@ -248,14 +248,10 @@
               </p>
             </header>
 
-            <!-- Compact horizontal cards on mobile, 3-column grid on desktop -->
-            <div
-              class="mt-4 flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory sm:grid sm:grid-cols-3 sm:gap-4 sm:overflow-visible sm:pb-0"
-            >
+            <!-- Simple responsive grid (no horizontal scroll) -->
+            <div class="mt-4 grid gap-4 xs:grid-cols-2 sm:grid-cols-3">
               <!-- Weekly drills -->
-              <div
-                class="flex min-w-[12rem] flex-col gap-2 snap-start rounded-2xl bg-slate-50 p-3 text-xs shadow-sm ring-1 ring-slate-100 sm:min-w-0"
-              >
+              <div class="flex flex-col gap-2 rounded-2xl bg-slate-50 p-3 text-xs shadow-sm">
                 <p class="text-xs font-semibold text-slate-700">
                   This week’s drills
                 </p>
@@ -276,9 +272,7 @@
               </div>
 
               <!-- Next assessment -->
-              <div
-                class="flex min-w-[12rem] flex-col gap-2 snap-start rounded-2xl bg-slate-50 p-3 text-xs shadow-sm ring-1 ring-slate-100 sm:min-w-0"
-              >
+              <div class="flex flex-col gap-2 rounded-2xl bg-slate-50 p-3 text-xs shadow-sm">
                 <p class="text-xs font-semibold text-slate-700">
                   Next assessment
                 </p>
@@ -302,9 +296,7 @@
               </div>
 
               <!-- Last activity -->
-              <div
-                class="flex min-w-[12rem] flex-col gap-2 snap-start rounded-2xl bg-slate-50 p-3 text-xs shadow-sm ring-1 ring-slate-100 sm:min-w-0"
-              >
+              <div class="flex flex-col gap-2 rounded-2xl bg-slate-50 p-3 text-xs shadow-sm">
                 <p class="text-xs font-semibold text-slate-700">
                   Last activity
                 </p>
@@ -464,12 +456,10 @@
               </p>
             </header>
 
-            <!-- Horizontal scroll on mobile, grid on larger screens -->
-            <div
-              class="mt-4 flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory sm:grid sm:grid-cols-3 sm:gap-3 sm:overflow-visible sm:pb-0"
-            >
+            <!-- Simple responsive grid -->
+            <div class="mt-4 grid gap-3 xs:grid-cols-2 sm:grid-cols-3">
               <div
-                class="flex min-w-[11rem] flex-col gap-1 snap-start rounded-xl bg-indigo-50 p-3 text-xs shadow-sm sm:min-w-0"
+                class="flex flex-col gap-1 rounded-xl bg-indigo-50 p-3 text-xs shadow-sm"
               >
                 <p class="text-[11px] font-medium text-indigo-700">
                   Courses this semester
@@ -483,7 +473,7 @@
               </div>
 
               <div
-                class="flex min-w-[11rem] flex-col gap-1 snap-start rounded-xl bg-sky-50 p-3 text-xs shadow-sm sm:min-w-0"
+                class="flex flex-col gap-1 rounded-xl bg-sky-50 p-3 text-xs shadow-sm"
               >
                 <p class="text-[11px] font-medium text-sky-700">
                   Practice questions
@@ -497,7 +487,7 @@
               </div>
 
               <div
-                class="flex min-w-[11rem] flex-col gap-1 snap-start rounded-xl bg-emerald-50 p-3 text-xs shadow-sm sm:min-w-0"
+                class="flex flex-col gap-1 rounded-xl bg-emerald-50 p-3 text-xs shadow-sm"
               >
                 <p class="text-[11px] font-medium text-emerald-700">
                   Average drill score

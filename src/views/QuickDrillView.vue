@@ -209,7 +209,7 @@
                 </p>
               </div>
 
-              <!-- Keyboard shortcut hints -->
+              <!-- Keyboard shortcut hints (desktop only) -->
               <ul class="shortcut-list">
                 <li>
                   <span class="shortcut-key">← / →</span>
@@ -541,6 +541,8 @@ watch(
   justify-content: space-between;
   gap: 0.75rem;
   border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 0 0 1rem 1rem;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.06);
 }
 
 .header-left {
@@ -944,25 +946,65 @@ watch(
   .page-header--quick-drill {
     flex-direction: column;
     align-items: stretch;
-    gap: 0.6rem;
-    padding-left: 0;
-    padding-right: 0;
+    gap: 0.55rem;
+    padding: 0.65rem 0.9rem 0.75rem;
+    border-radius: 0 0 0.9rem 0.9rem;
   }
 
   .header-left {
-    flex-direction: column;
+    gap: 0.5rem;
+    align-items: flex-start;
+  }
+
+  .page-title {
+    font-size: 1rem;
+  }
+
+  .page-sub {
+    font-size: 0.78rem;
+  }
+
+  .mode-row {
+    margin-top: 0.15rem;
+  }
+
+  .mode-pill {
+    font-size: 0.68rem;
+    padding: 0.16rem 0.55rem;
   }
 
   .header-right {
+    width: 100%;
     justify-content: flex-start;
   }
 
+  .header-cta {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .drill-progress-shell {
+    padding: 0.35rem 0.9rem 0.2rem;
+  }
+
   .quick-drill-inner {
-    padding-bottom: 2rem;
+    max-width: 100%;
+    padding: 0.75rem 0.9rem 2rem;
   }
 
   .quick-grid {
     grid-template-columns: minmax(0, 1fr);
+    gap: 0.75rem;
+  }
+
+  /* Show course picker first on mobile */
+  .quick-grid-col--picker {
+    order: 1;
+  }
+
+  .quick-grid-col--intro {
+    order: 2;
   }
 
   .stats-row {
@@ -974,14 +1016,27 @@ watch(
     width: 100%;
   }
 
-  .drill-progress-shell {
-    padding-left: 0;
-    padding-right: 0;
+  .quick-summary-card,
+  .course-picker-card,
+  .quick-drill-card-shell,
+  .info-card {
+    border-radius: 0.9rem;
+  }
+
+  .quick-summary-card,
+  .course-picker-card {
+    padding-top: 0.9rem;
+    padding-bottom: 0.9rem;
   }
 
   .quick-drill-card-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  /* Shortcut hints are less relevant on phones */
+  .shortcut-list {
+    display: none;
   }
 }
 </style>

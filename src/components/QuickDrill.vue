@@ -289,7 +289,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["toast", "completed"]);
+const emit = defineEmits(["toast", "completed", "progress"]);
 
 const router = useRouter();
 
@@ -344,12 +344,31 @@ const score = computed(() => {
   return correct;
 });
 
-// First unanswered question index (for keyboard shortcuts)
+// First unanswered question index (for keyboard shortcuts + external progress)
 const currentQuestionIndex = computed(() => {
   if (!questions.value.length) return -1;
   const idx = questions.value.findIndex((q) => !userAnswers.value[q.id]);
   return idx === -1 ? questions.value.length - 1 : idx;
 });
+
+// 🔃 Emit progress to parent (QuickDrillView)
+function emitProgress(state = "active") {
+  if (!questions.value.length) {
+    emit("progress", {
+      current: 0,
+      total: 0,
+      state,
+    });
+    return;
+  }
+
+  emit("progress", {
+    // Use current question index (1-based) so parent can show: "Question X of Y"
+    current: currentQuestionIndex.value + 1,
+    total: questions.value.length,
+    state,
+  });
+}
 
 // Timer formatted mm:ss
 const formattedTime = computed(() => {
@@ -409,12 +428,16 @@ async function startQuickDrill() {
     const data = await getQuickDrill(props.courseId, drillSize.value);
     if (!Array.isArray(data) || data.length === 0) {
       drillError.value = "No questions available for this course yet.";
+      emitProgress("idle");
       return;
     }
     questions.value = data;
 
     // Start timer for fullscreen drills
     startTimerIfFullscreen();
+
+    // Emit initial progress: at question 1 of N
+    emitProgress("active");
 
     // Scroll into view when drill starts (nice on mobile)
     if (typeof window !== "undefined") {
@@ -428,6 +451,7 @@ async function startQuickDrill() {
     console.error(err);
     drillError.value = "Could not load quick drill. Please try again.";
     showToast("Could not load quick drill.", "error");
+    emitProgress("error");
   } finally {
     drillLoading.value = false;
   }
@@ -439,6 +463,9 @@ function selectAnswer(questionId, optionKey) {
     ...userAnswers.value,
     [questionId]: optionKey,
   };
+
+  // Update parent progress (current question may move to next unanswered)
+  emitProgress("active");
 }
 
 function saveLastDrill() {
@@ -486,6 +513,9 @@ async function submitDrill() {
 
   const total = totalQuestions.value;
   const correct = score.value;
+
+  // Mark as completed for external progress bar
+  emitProgress("completed");
 
   // Try to persist on backend for dashboard & stats
   try {
@@ -545,6 +575,7 @@ function resetDrill() {
   questionRefs.value = [];
   stopTimer();
   timerSeconds.value = 0;
+  emitProgress("idle");
 }
 
 // class helper for options
@@ -661,6 +692,9 @@ onMounted(() => {
   if (typeof window !== "undefined") {
     window.addEventListener("keydown", handleKeydown);
   }
+
+  // Initial idle progress for parent
+  emitProgress("idle");
 });
 
 onBeforeUnmount(() => {
