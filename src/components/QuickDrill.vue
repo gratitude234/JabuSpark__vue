@@ -176,6 +176,15 @@
       v-if="questions.length && !drillLoading"
       class="drill-body"
     >
+      <!-- 🔄 Explanations loading indicator (after submit) -->
+      <div
+        v-if="showResults && explanationsLoading"
+        class="spinner-area explanations-spinner"
+      >
+        <div class="spinner"></div>
+        <p class="empty-text">Generating explanations…</p>
+      </div>
+
       <ol class="question-list">
         <li
           v-for="(q, index) in questions"
@@ -216,8 +225,9 @@
             </button>
           </div>
 
+          <!-- 🧠 Only show explanations when NOT loading -->
           <p
-            v-if="showResults && q.explanation"
+            v-if="showResults && q.explanation && !explanationsLoading"
             class="explanation-text"
           >
             <span class="explanation-label">Why:</span>
@@ -313,6 +323,9 @@ const lastDrill = ref(null);
 // For question scrolling
 const questionRefs = ref([]);
 
+// 🔄 Explanations loading flag
+const explanationsLoading = ref(false);
+
 // Timer
 const timerSeconds = ref(0);
 const timerRunning = ref(false);
@@ -363,7 +376,6 @@ function emitProgress(state = "active") {
   }
 
   emit("progress", {
-    // Use current question index (1-based) so parent can show: "Question X of Y"
     current: currentQuestionIndex.value + 1,
     total: questions.value.length,
     state,
@@ -422,6 +434,7 @@ async function startQuickDrill() {
     userAnswers.value = {};
     questions.value = [];
     questionRefs.value = [];
+    explanationsLoading.value = false;
     stopTimer();
     timerSeconds.value = 0;
 
@@ -555,6 +568,9 @@ async function submitDrill() {
   if (!pending.length) return;
 
   try {
+    // 🚨 Show loading indicator while explanations are being fetched
+    explanationsLoading.value = true;
+
     await Promise.all(
       pending.map(async (q) => {
         const data = await getQuestionExplanation(q.id);
@@ -564,6 +580,9 @@ async function submitDrill() {
   } catch (e) {
     console.error("Failed to fetch explanations", e);
     showToast("Some explanations could not be loaded.", "error");
+  } finally {
+    // ✅ Hide loading indicator once done (success or fail)
+    explanationsLoading.value = false;
   }
 }
 
@@ -573,6 +592,7 @@ function resetDrill() {
   showResults.value = false;
   drillError.value = null;
   questionRefs.value = [];
+  explanationsLoading.value = false;
   stopTimer();
   timerSeconds.value = 0;
   emitProgress("idle");
@@ -1058,6 +1078,11 @@ watch(
 
 .quick-spinner-area {
   margin-top: 0.75rem;
+}
+
+/* EXPLANATIONS SPINNER */
+.explanations-spinner {
+  margin-bottom: 0.5rem;
 }
 
 /* QUESTIONS */

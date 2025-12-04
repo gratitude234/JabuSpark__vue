@@ -9,7 +9,7 @@
       {{ toast.message }}
     </div>
 
-    <!-- Sticky exam-style header -->
+    <!-- Exam-style header -->
     <header class="page-header page-header--quick-drill">
       <div class="header-left">
         <button class="back-link back-link--ghost" type="button" @click="goBack">
@@ -226,9 +226,46 @@
               </ul>
             </div>
 
+            <!-- Feedback mode toggle -->
+            <section class="drill-mode-section">
+              <div class="drill-mode-header">
+                <h3 class="drill-mode-title">Feedback mode</h3>
+                <p class="drill-mode-sub">
+                  Choose how you want to see answers and explanations.
+                </p>
+              </div>
+
+              <div class="drill-mode-toggle">
+                <button
+                  type="button"
+                  class="mode-toggle-pill"
+                  :class="{ 'mode-toggle-pill--active': feedbackMode === 'instant' }"
+                  @click="feedbackMode = 'instant'"
+                >
+                  Instant feedback
+                  <span class="mode-toggle-pill-hint">
+                    Show result after each question
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  class="mode-toggle-pill"
+                  :class="{ 'mode-toggle-pill--active': feedbackMode === 'end' }"
+                  @click="feedbackMode = 'end'"
+                >
+                  End of drill
+                  <span class="mode-toggle-pill-hint">
+                    Mark everything at the end
+                  </span>
+                </button>
+              </div>
+            </section>
+
             <QuickDrillCard
               :course-id="courseId"
               mode="fullscreen"
+              :feedback-mode="feedbackMode"
               @toast="handleToast"
               @progress="handleDrillProgress"
               @completed="handleDrillCompleted"
@@ -272,6 +309,9 @@ const toast = ref({
   type: "success",
   message: "",
 });
+
+// Feedback mode for the drill: 'instant' or 'end'
+const feedbackMode = ref("end");
 
 // Last drill summary for this course (from localStorage or @completed)
 const lastDrill = ref(null);
@@ -523,7 +563,7 @@ watch(
   padding-bottom: 2.5rem;
 }
 
-/* Sticky exam-style header */
+/* Exam-style header (sticky on desktop only) */
 .page-header--quick-drill {
   position: sticky;
   top: 0;
@@ -941,9 +981,63 @@ watch(
   white-space: nowrap;
 }
 
+/* Feedback mode UI */
+.drill-mode-section {
+  margin-top: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+
+.drill-mode-header {
+  margin-bottom: 0.35rem;
+}
+
+.drill-mode-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.drill-mode-sub {
+  font-size: 0.78rem;
+  color: #6b7280;
+}
+
+.drill-mode-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.mode-toggle-pill {
+  border-radius: 0.9rem;
+  border: 1px solid #e5e7eb;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.8rem;
+  text-align: left;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  cursor: pointer;
+}
+
+.mode-toggle-pill--active {
+  border-color: #4f46e5;
+  background: linear-gradient(to right, #eef2ff, #e0f2fe);
+}
+
+.mode-toggle-pill-hint {
+  font-size: 0.72rem;
+  color: #6b7280;
+}
+
 /* Small screens */
 @media (max-width: 640px) {
   .page-header--quick-drill {
+    position: static;      /* turn OFF sticky on mobile */
+    top: auto;
+    box-shadow: none;
+    backdrop-filter: none;
     flex-direction: column;
     align-items: stretch;
     gap: 0.55rem;
@@ -1037,6 +1131,10 @@ watch(
   /* Shortcut hints are less relevant on phones */
   .shortcut-list {
     display: none;
+  }
+
+  .drill-mode-toggle {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 </style>
