@@ -1,3 +1,4 @@
+// src/router/index.js
 import { createRouter, createWebHistory } from "vue-router";
 
 import DashboardView from "../views/DashboardView.vue";
@@ -7,7 +8,6 @@ import LoginView from "../views/LoginView.vue";
 import RegisterView from "../views/RegisterView.vue";
 import AdminCoursesView from "../views/AdminCoursesView.vue";
 import AdminCourseQuestionsView from "../views/AdminCourseQuestionsView.vue";
-import QuickDrillView from "../views/QuickDrillView.vue"; // 👈 NEW
 
 const router = createRouter({
   history: createWebHistory(),
@@ -32,14 +32,6 @@ const router = createRouter({
       path: "/courses/:id",
       name: "course-detail",
       component: CourseDetailView,
-      meta: { requiresAuth: true },
-    },
-
-    // Standalone quick drill view (auth-only)
-    {
-      path: "/quick-drill",
-      name: "quick-drill",
-      component: QuickDrillView,
       meta: { requiresAuth: true },
     },
 

@@ -28,16 +28,6 @@
             • {{ lastDrill.drillSize }} Q
           </span>
         </div>
-
-        <!-- Inline-only: link to full page -->
-        <button
-          v-if="mode === 'inline'"
-          type="button"
-          class="quick-link-full"
-          @click="openFullDrillPage"
-        >
-          Open full drill page →
-        </button>
       </div>
 
       <!-- RIGHT: size selector / meta -->
@@ -82,65 +72,6 @@
     <!-- Error -->
     <div v-if="drillError" class="alert alert-error quick-alert">
       {{ drillError }}
-    </div>
-
-    <!-- Sticky header: progress + mini-map (FULLSCREEN ONLY) -->
-    <div
-      v-if="questions.length && !drillLoading && mode === 'fullscreen'"
-      class="quick-sticky-header"
-    >
-      <!-- Progress -->
-      <div class="progress-row quick-progress-row">
-        <div class="quick-progress-main">
-          <span class="progress-label">
-            Progress: {{ answeredCount }} / {{ totalQuestions }}
-            <span v-if="showResults">
-              • Score: {{ score }} / {{ totalQuestions }}
-            </span>
-          </span>
-          <span class="progress-hint" v-if="!showResults && !isInstantMode">
-            Tap an option to answer — you can change answers before submitting.
-          </span>
-          <span class="progress-hint" v-else-if="!showResults && isInstantMode">
-            Tap an option to answer — you’ll see correct/incorrect instantly.
-          </span>
-          <span class="progress-hint" v-else>
-            Scroll to review explanations for each question.
-          </span>
-        </div>
-
-        <div class="progress-bar quick-progress-bar">
-          <div
-            class="progress-bar__fill"
-            :style="{ width: progressPercent + '%' }"
-          ></div>
-        </div>
-      </div>
-
-      <!-- Question mini-map -->
-      <div class="question-nav-row">
-        <button
-          v-for="(q, index) in questions"
-          :key="q.id"
-          type="button"
-          class="question-nav-dot"
-          :class="questionNavClass(q)"
-          @click="scrollToQuestion(index)"
-        >
-          {{ index + 1 }}
-        </button>
-      </div>
-
-      <!-- Timer (fullscreen mode only) -->
-      <div class="timer-row">
-        <span class="timer-label">Time</span>
-        <span class="timer-value">
-          {{ formattedTime }}
-        </span>
-        <span class="timer-hint">
-          (Keyboard: A–D / 1–4, Enter to submit)
-        </span>
-      </div>
     </div>
 
     <!-- No questions yet -->
@@ -288,7 +219,6 @@ import {
   watch,
   nextTick,
 } from "vue";
-import { useRouter } from "vue-router";
 import { getQuickDrill, getQuestionExplanation } from "../services/questions";
 import { completeDrill } from "../services/drills"; // ✅ save completed drills to backend
 
@@ -297,12 +227,7 @@ const props = defineProps({
     type: Number,
     required: true,
   },
-  // 'inline' (inside CourseDetail) or 'fullscreen' (QuickDrillView)
-  mode: {
-    type: String,
-    default: "inline",
-  },
-  // 🔑 NEW: how to show feedback
+  // How to show feedback: 'instant' or 'end'
   feedbackMode: {
     type: String,
     default: "end",
@@ -311,8 +236,6 @@ const props = defineProps({
 });
 
 const emit = defineEmits(["toast", "completed", "progress"]);
-
-const router = useRouter();
 
 const isInstantMode = computed(() => props.feedbackMode === "instant");
 
@@ -330,7 +253,7 @@ const questions = ref([]);
 const userAnswers = ref({});
 const showResults = ref(false);
 
-// NEW: per-question result for instant mode: { [id]: 'correct' | 'incorrect' }
+// per-question result for instant mode: { [id]: 'correct' | 'incorrect' }
 const questionResults = ref({});
 
 // Last drill (localStorage)
@@ -342,7 +265,7 @@ const questionRefs = ref([]);
 // Explanations loading (used for END mode bulk fetch)
 const explanationsLoading = ref(false);
 
-// Timer
+// Timer (for duration, even though we don’t show it in UI)
 const timerSeconds = ref(0);
 const timerRunning = ref(false);
 let timerId = null;
@@ -374,14 +297,14 @@ const score = computed(() => {
   return correct;
 });
 
-// First unanswered question index (for keyboard shortcuts + external progress)
+// First unanswered question index (for external progress)
 const currentQuestionIndex = computed(() => {
   if (!questions.value.length) return -1;
   const idx = questions.value.findIndex((q) => !userAnswers.value[q.id]);
   return idx === -1 ? questions.value.length - 1 : idx;
 });
 
-// 🔃 Emit progress to parent (QuickDrillView)
+// 🔃 Emit progress to parent (dashboard / course view)
 function emitProgress(state = "active") {
   if (!questions.value.length) {
     emit("progress", {
@@ -399,16 +322,7 @@ function emitProgress(state = "active") {
   });
 }
 
-// Timer formatted mm:ss
-const formattedTime = computed(() => {
-  const total = timerSeconds.value;
-  const minutes = Math.floor(total / 60);
-  const seconds = total % 60;
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-});
-
-function startTimerIfFullscreen() {
-  if (props.mode !== "fullscreen") return;
+function startTimer() {
   stopTimer();
   timerSeconds.value = 0;
   timerRunning.value = true;
@@ -464,8 +378,8 @@ async function startQuickDrill() {
     }
     questions.value = data;
 
-    // Start timer for fullscreen drills
-    startTimerIfFullscreen();
+    // Start timer for this drill
+    startTimer();
 
     // Emit initial progress: at question 1 of N
     emitProgress("active");
@@ -593,7 +507,7 @@ async function submitDrill() {
   // Always keep lightweight local history for this course
   saveLastDrill();
 
-  // Let parent (QuickDrillView) know we just completed a drill
+  // Let parent know we just completed a drill
   emit("completed", {
     courseId: props.courseId,
     score: correct,
@@ -685,39 +599,6 @@ function optionClass(q, opt) {
   };
 }
 
-// mini-map styles for each question dot
-function questionNavClass(q) {
-  const selected = userAnswers.value[q.id];
-  const classes = {};
-
-  if (selected) {
-    classes["question-nav-dot--answered"] = true;
-  }
-
-  const result = questionResults.value[q.id];
-
-  // INSTANT MODE: color code as soon as result is known
-  if (isInstantMode.value && result) {
-    if (result === "correct") {
-      classes["question-nav-dot--correct"] = true;
-    } else if (result === "incorrect") {
-      classes["question-nav-dot--incorrect"] = true;
-    }
-    return classes;
-  }
-
-  // END MODE: color code only after submit
-  if (showResults.value) {
-    if (selected === q.correct_option) {
-      classes["question-nav-dot--correct"] = true;
-    } else if (selected) {
-      classes["question-nav-dot--incorrect"] = true;
-    }
-  }
-
-  return classes;
-}
-
 // Keep a ref to each question DOM node for scrolling
 function setQuestionRef(el, index) {
   if (el) {
@@ -735,65 +616,8 @@ function scrollToQuestion(index) {
   });
 }
 
-// Keyboard shortcuts (fullscreen mode only)
-function handleKeydown(e) {
-  if (props.mode !== "fullscreen") return;
-  if (!questions.value.length || drillLoading.value) return;
-
-  const target = e.target;
-  const tag = target?.tagName;
-  if (
-    tag === "INPUT" ||
-    tag === "TEXTAREA" ||
-    tag === "SELECT" ||
-    target?.isContentEditable
-  ) {
-    return;
-  }
-
-  const key = e.key;
-  let opt = null;
-
-  // Map keys to options
-  if (key === "1" || key.toLowerCase() === "a") opt = "A";
-  else if (key === "2" || key.toLowerCase() === "b") opt = "B";
-  else if (key === "3" || key.toLowerCase() === "c") opt = "C";
-  else if (key === "4" || key.toLowerCase() === "d") opt = "D";
-
-  if (opt) {
-    e.preventDefault();
-    const idx = currentQuestionIndex.value;
-    if (idx === -1) return;
-    const q = questions.value[idx];
-    if (!q) return;
-    selectAnswer(q.id, opt);
-    return;
-  }
-
-  if (key === "Enter") {
-    if (!showResults.value && answeredCount.value) {
-      e.preventDefault();
-      submitDrill();
-    }
-  }
-}
-
-// inline-only: open full-screen drill view
-function openFullDrillPage() {
-  router.push({
-    path: "/quick-drill",
-    query: {
-      courseId: String(props.courseId),
-    },
-  });
-}
-
 onMounted(() => {
   loadLastDrill();
-
-  if (typeof window !== "undefined") {
-    window.addEventListener("keydown", handleKeydown);
-  }
 
   // Initial idle progress for parent
   emitProgress("idle");
@@ -801,9 +625,6 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   stopTimer();
-  if (typeof window !== "undefined") {
-    window.removeEventListener("keydown", handleKeydown);
-  }
 });
 
 watch(
@@ -903,23 +724,6 @@ watch(
   color: #6b7280;
 }
 
-/* small link under last drill (inline mode) */
-.quick-link-full {
-  margin-top: 0.35rem;
-  font-size: 0.75rem;
-  color: #4338ca;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  background: transparent;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-}
-
-.quick-link-full:hover {
-  color: #312e81;
-}
-
 /* RIGHT HEADER */
 .quick-header-right {
   display: flex;
@@ -995,138 +799,6 @@ watch(
 /* ALERT */
 .quick-alert {
   margin-top: 0.5rem;
-}
-
-/* STICKY HEADER (progress + mini-map + timer) */
-.quick-sticky-header {
-  position: sticky;
-  top: -0.75rem; /* keeps it near top inside card */
-  z-index: 5;
-  padding-top: 0.6rem;
-  padding-bottom: 0.5rem;
-  margin-top: 0.5rem;
-  margin-bottom: 0.5rem;
-  background: linear-gradient(
-    to bottom,
-    rgba(255, 255, 255, 0.97),
-    rgba(255, 255, 255, 0.9)
-  );
-  backdrop-filter: blur(8px);
-}
-
-/* PROGRESS */
-.quick-progress-row {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.quick-progress-main {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-}
-
-.progress-label {
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: #111827;
-}
-
-.progress-hint {
-  font-size: 0.75rem;
-  color: #6b7280;
-}
-
-.quick-progress-bar {
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-/* QUESTION MINI-MAP */
-.question-nav-row {
-  margin-top: 0.45rem;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-}
-
-.question-nav-dot {
-  width: 1.7rem;
-  height: 1.7rem;
-  border-radius: 999px;
-  border: 1px solid #e5e7eb;
-  background: #f9fafb;
-  font-size: 0.78rem;
-  font-weight: 500;
-  color: #4b5563;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease,
-    color 0.15s ease,
-    transform 0.12s ease,
-    box-shadow 0.15s ease;
-}
-
-.question-nav-dot:hover {
-  background: #eef2ff;
-  border-color: #c7d2fe;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
-}
-
-/* answered before submit */
-.question-nav-dot--answered {
-  background: #eef2ff;
-  border-color: #4f46e5;
-  color: #312e81;
-}
-
-/* after submit: correct / incorrect */
-.question-nav-dot--correct {
-  background: #ecfdf3;
-  border-color: #16a34a;
-  color: #166534;
-}
-
-.question-nav-dot--incorrect {
-  background: #fef2f2;
-  border-color: #dc2626;
-  color: #b91c1c;
-}
-
-/* TIMER */
-.timer-row {
-  margin-top: 0.45rem;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.78rem;
-}
-
-.timer-label {
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-weight: 600;
-  color: #9ca3af;
-}
-
-.timer-value {
-  padding: 0.15rem 0.55rem;
-  border-radius: 999px;
-  background: #0f172a;
-  color: #f9fafb;
-  font-variant-numeric: tabular-nums;
-}
-
-.timer-hint {
-  color: #9ca3af;
-  font-size: 0.72rem;
 }
 
 /* EMPTY STATE */
@@ -1327,20 +999,6 @@ watch(
 
   .question-item {
     padding: 0.75rem 0.75rem;
-  }
-
-  .question-nav-row {
-    overflow-x: auto;
-    padding-bottom: 0.1rem;
-  }
-
-  .question-nav-row::-webkit-scrollbar {
-    height: 4px;
-  }
-
-  .question-nav-row::-webkit-scrollbar-thumb {
-    border-radius: 999px;
-    background: #e5e7eb;
   }
 
   /* Make footer feel more "sticky" on small screens */

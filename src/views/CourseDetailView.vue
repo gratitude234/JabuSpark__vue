@@ -55,20 +55,11 @@
               >
                 {{ showInlineQuickDrill ? "Hide drill" : "Start quick drill" }}
               </button>
-
-              <button
-                type="button"
-                class="pill-btn"
-                @click="openFullDrillPage"
-              >
-                Full drill page
-              </button>
             </div>
           </div>
 
           <p class="hint">
-            Use the inline drill for quick revision. Open the full page when you
-            want a more focused session.
+            Use the quick drill whenever you want fast, exam-style practice for this course.
           </p>
         </section>
 
@@ -77,6 +68,7 @@
           <QuickDrill
             v-if="showInlineQuickDrill"
             :course-id="courseId"
+            feedback-mode="instant"
             @toast="handleToast"
           />
         </transition>
@@ -136,6 +128,7 @@
         >
           <QuickDrill
             :course-id="courseId"
+            feedback-mode="instant"
             @toast="handleToast"
           />
         </div>
@@ -153,7 +146,7 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount, computed, watch } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRoute } from "vue-router";
 import { getCourse } from "../services/courses";
 
 import CourseMaterials from "../components/CourseMaterials.vue";
@@ -161,7 +154,6 @@ import QuickDrill from "../components/QuickDrill.vue";
 import AskJabuspark from "../components/AskJabuspark.vue";
 
 const route = useRoute();
-const router = useRouter();
 const courseId = Number(route.params.id);
 
 const course = ref(null);
@@ -181,13 +173,7 @@ const activeMobileTab = ref("materials"); // 'materials' | 'drill' | 'ai'
 // Inline drill toggle (desktop)
 const showInlineQuickDrill = ref(false);
 
-// 🔥 Drill ID from query (?drillId=123)
-const drillIdFromQuery = computed(() => {
-  const raw = route.query.drillId;
-  if (raw === undefined || raw === null || raw === "") return null;
-  const num = Number(raw);
-  return Number.isNaN(num) ? null : num;
-});
+// ---------- HELPERS & STATE ----------
 
 function setActiveTab(tab) {
   activeMobileTab.value = tab;
@@ -232,49 +218,41 @@ function toggleInlineQuickDrill() {
   showInlineQuickDrill.value = !showInlineQuickDrill.value;
 }
 
-function openFullDrillPage() {
-  // If course is not yet loaded, fall back to courseId only
-  const c = course.value || {};
-  router.push({
-    path: "/quick-drill",
-    query: {
-      courseId: String(c.id || courseId),
-      courseCode: c.code || "",
-      courseTitle: c.title || "",
-    },
-  });
-}
-
-// 👀 React when drillId in query changes (e.g. coming from dashboard)
+// 👀 Keep the drill tab / inline drill in sync with query (?tab=drill, ?drillId=...)
+// This reacts to:
+//  - route.query.drillId (e.g. ?drillId=new or ?drillId=123)
+//  - route.query.tab (e.g. ?tab=drill | ai | materials)
+//  - isMobile (so resizing also respects the query)
 watch(
-  () => route.query.drillId,
-  (newVal) => {
+  () => [route.query.drillId, route.query.tab, isMobile.value],
+  ([drillId, tab]) => {
     const hasDrillId =
-      newVal !== undefined && newVal !== null && newVal !== "";
-    if (!hasDrillId) return;
+      drillId !== undefined && drillId !== null && drillId !== "";
 
     if (isMobile.value) {
-      // On mobile, jump straight to Quick drill tab
-      activeMobileTab.value = "drill";
+      // MOBILE: switch tabs
+      if (tab === "drill" || hasDrillId) {
+        activeMobileTab.value = "drill";
+      } else if (tab === "ai") {
+        activeMobileTab.value = "ai";
+      } else {
+        activeMobileTab.value = "materials";
+      }
     } else {
-      // On desktop, open the inline QuickDrill card
-      showInlineQuickDrill.value = true;
+      // DESKTOP: open inline quick drill when coming from dashboard with tab=drill or drillId
+      if (tab === "drill" || hasDrillId) {
+        showInlineQuickDrill.value = true;
+      }
     }
-  }
+  },
+  { immediate: true }
 );
 
 onMounted(() => {
   loadCourse();
   updateIsMobile();
-  window.addEventListener("resize", updateIsMobile);
-
-  // Initial navigation with ?drillId=...
-  if (drillIdFromQuery.value) {
-    if (isMobile.value) {
-      activeMobileTab.value = "drill";
-    } else {
-      showInlineQuickDrill.value = true;
-    }
+  if (typeof window !== "undefined") {
+    window.addEventListener("resize", updateIsMobile);
   }
 });
 

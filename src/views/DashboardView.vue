@@ -291,7 +291,7 @@
                   </span>
                 </div>
                 <p v-else class="text-[11px] text-slate-500">
-                  No assessments added yet. You&apos;ll see the next one here.
+                  No assessments added yet. You&apos;ll see them here.
                 </p>
               </div>
 
@@ -726,6 +726,9 @@ const nextAssessment = ref(null);
 const upcomingAssessments = ref([]);
 const recentDrills = ref([]);
 
+// 🔹 Active courses (optional, if backend sends them)
+const activeCourses = ref([]);
+
 // ---------- COMPUTED ----------
 
 const displayName = computed(() => {
@@ -776,6 +779,23 @@ function formatDateTime(dateStr) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+// Pick a good course to send the student into for a drill
+function getPreferredCourseIdForDrill() {
+  // 1) Prefer the course from the last drill (feels like "continue")
+  if (lastDrill.value?.courseId) {
+    return lastDrill.value.courseId;
+  }
+
+  // 2) Otherwise, fall back to the first active course (if backend sends them)
+  const firstCourse = activeCourses.value.find((c) => c.id);
+  if (firstCourse) {
+    return firstCourse.id;
+  }
+
+  // 3) If we really don't know any course id yet, return null and send the user to /courses
+  return null;
 }
 
 // ---------- API / DATA LOAD ----------
@@ -844,6 +864,20 @@ async function loadDashboard() {
       }
     }
 
+    // 🔹 Active courses (optional)
+    const coursesRaw = Array.isArray(data.courses)
+      ? data.courses
+      : Array.isArray(data.active_courses)
+      ? data.active_courses
+      : [];
+
+    activeCourses.value = coursesRaw.map((c, index) => ({
+      id: c.id ?? c.course_id ?? index,
+      code: c.code || c.course_code || "COURSE",
+      title: c.title || c.course_title || "Course",
+      level: c.level || c.level_name || "",
+    }));
+
     // Upcoming assessments
     const exams = Array.isArray(data.upcoming_exams) ? data.upcoming_exams : [];
     upcomingAssessments.value = exams.map((e, index) => ({
@@ -900,8 +934,22 @@ async function loadDashboard() {
 
 // ---------- NAVIGATION / ACTIONS ----------
 
+// ✅ Start quick drill by going to a course workspace that has the inline QuickDrill
 function startQuickDrill() {
-  router.push({ name: "quick-drill" });
+  const targetCourseId = getPreferredCourseIdForDrill();
+
+  // If we don't know any course id yet, send them to the Courses page to pick one
+  if (!targetCourseId) {
+    router.push("/courses");
+    return;
+  }
+
+  router.push({
+    name: "course-detail",
+    params: { id: targetCourseId },
+    // Force CourseDetail into the drill workspace
+    query: { drillId: "new", tab: "drill" },
+  });
 }
 
 function continueLastSession() {
@@ -932,18 +980,23 @@ function reviewLastDrill() {
   reviewDrill(lastDrill.value.id);
 }
 
+// ✅ Review drill inside the course detail page (inline QuickDrill), not a standalone page
 function reviewDrill(drillId) {
   if (!drillId) return;
+
   const drill = recentDrills.value.find((d) => d.id === drillId);
-  const courseId = drill?.courseId;
+  const courseId = drill?.courseId || getPreferredCourseIdForDrill();
+
   if (courseId) {
     router.push({
       name: "course-detail",
       params: { id: courseId },
-      query: { drillId },
+      // tab=drill => CourseDetail shows drill tab / inline QuickDrill
+      query: { drillId, tab: "drill" },
     });
   } else {
-    router.push({ name: "quick-drill", query: { drillId } });
+    // As a last resort, send them to courses list
+    router.push("/courses");
   }
 }
 
