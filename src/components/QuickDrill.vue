@@ -8,13 +8,18 @@
           Quick drill
         </h2>
         <p class="card-sub quick-sub">
-          {{ drillSize }} fast MCQs to test your understanding of this course.
+          <span v-if="drillSize === 'all'">
+            All available MCQs to test your understanding of this course.
+          </span>
+          <span v-else>
+            {{ drillSize }} fast MCQs to test your understanding of this course.
+          </span>
         </p>
 
         <div class="quick-tags">
           <span class="quick-tag">⚡ Auto-marked</span>
           <span class="quick-tag quick-tag--secondary">
-            💡 Instant explanations
+            💡 Explanations after submission
           </span>
         </div>
 
@@ -62,9 +67,13 @@
               :disabled="drillLoading"
               :aria-pressed="drillSize === size"
             >
-              {{ size }} Q
+              <span v-if="size === 'all'">All</span>
+              <span v-else>{{ size }} Q</span>
             </button>
           </div>
+          <p class="drill-size-hint">
+            5 = quick • 10 = standard • 20 = deep • All = full bank
+          </p>
         </div>
       </div>
     </div>
@@ -93,7 +102,12 @@
             @click="startQuickDrill"
             :disabled="drillLoading"
           >
-            Start {{ drillSize }}-question drill
+            <span v-if="drillSize === 'all'">
+              Start full-question drill
+            </span>
+            <span v-else>
+              Start {{ drillSize }}-question drill
+            </span>
           </button>
         </div>
       </div>
@@ -110,9 +124,9 @@
       v-if="questions.length && !drillLoading"
       class="drill-body"
     >
-      <!-- 🔄 Explanations loading indicator (after submit, end-mode) -->
+      <!-- 🔄 Explanations loading indicator (after submit) -->
       <div
-        v-if="showResults && explanationsLoading && !isInstantMode"
+        v-if="showResults && explanationsLoading"
         class="spinner-area explanations-spinner"
       >
         <div class="spinner"></div>
@@ -159,16 +173,69 @@
             </button>
           </div>
 
-          <!-- 🧠 Explanations:
-               - END MODE: show after submit (showResults)
-               - INSTANT MODE: show as soon as explanation is fetched -->
-          <p
-            v-if="(isInstantMode || showResults) && q.explanation"
-            class="explanation-text"
-          >
-            <span class="explanation-label">Why:</span>
-            <span>{{ q.explanation }}</span>
-          </p>
+          <!-- 🧠 Explanation block (END MODE only)
+               - Only visible after submit (showResults)
+               - Explanation is LOCKED per question until that question was answered
+          -->
+          <div v-if="showResults" class="explanation-wrapper">
+            <!-- Unlocked explanation (question answered + explanation available) -->
+            <div
+              v-if="userAnswers[q.id] && q.explanation"
+              class="explanation-card"
+              :class="{
+                'explanation-card--correct': isQuestionCorrect(q),
+                'explanation-card--incorrect': !isQuestionCorrect(q),
+              }"
+            >
+              <div class="explanation-header">
+                <span class="explanation-pill">
+                  <span class="explanation-dot"></span>
+                  Explanation
+                </span>
+
+                <span
+                  class="explanation-result"
+                  :class="{
+                    'explanation-result--correct': isQuestionCorrect(q),
+                    'explanation-result--incorrect': !isQuestionCorrect(q),
+                  }"
+                >
+                  {{ isQuestionCorrect(q) ? "You were correct" : "You were incorrect" }}
+                </span>
+              </div>
+
+              <p class="explanation-body">
+                {{ q.explanation }}
+              </p>
+
+              <div class="explanation-meta">
+                <span class="meta-label">Correct answer:</span>
+                <span class="meta-value">{{ correctAnswerText(q) }}</span>
+              </div>
+            </div>
+
+            <!-- Answered but explanation missing (API error, etc.) -->
+            <div
+              v-else-if="userAnswers[q.id] && !q.explanation && !explanationsLoading"
+              class="explanation-locked explanation-locked--warning"
+            >
+              <span class="locked-icon">⚠️</span>
+              <span class="locked-text">
+                Explanation unavailable for this question. Try another drill.
+              </span>
+            </div>
+
+            <!-- Locked explanation (question not answered) -->
+            <div
+              v-else
+              class="explanation-locked"
+            >
+              <span class="locked-icon">🔒</span>
+              <span class="locked-text">
+                Explanation locked — this question wasn’t answered.
+              </span>
+            </div>
+          </div>
         </li>
       </ol>
 
@@ -227,25 +294,17 @@ const props = defineProps({
     type: Number,
     required: true,
   },
-  // How to show feedback: 'instant' or 'end'
-  feedbackMode: {
-    type: String,
-    default: "end",
-    validator: (v) => v === "instant" || v === "end",
-  },
 });
 
 const emit = defineEmits(["toast", "completed", "progress"]);
-
-const isInstantMode = computed(() => props.feedbackMode === "instant");
 
 function showToast(message, type = "success") {
   emit("toast", { message, type });
 }
 
 // QUICK DRILL STATE
-const drillSizeOptions = [5, 10, 20];
-const drillSize = ref(10);
+const drillSizeOptions = [5, 10, 20, "all"];
+const drillSize = ref(10); // can be 5 | 10 | 20 | "all"
 
 const drillLoading = ref(false);
 const drillError = ref(null);
@@ -253,16 +312,13 @@ const questions = ref([]);
 const userAnswers = ref({});
 const showResults = ref(false);
 
-// per-question result for instant mode: { [id]: 'correct' | 'incorrect' }
-const questionResults = ref({});
-
 // Last drill (localStorage)
 const lastDrill = ref(null);
 
 // For question scrolling
 const questionRefs = ref([]);
 
-// Explanations loading (used for END mode bulk fetch)
+// Explanations loading (used when bulk-fetching after submit)
 const explanationsLoading = ref(false);
 
 // Timer (for duration, even though we don’t show it in UI)
@@ -286,7 +342,7 @@ const progressPercent = computed(() => {
   return Math.round((answeredCount.value / totalQuestions.value) * 100);
 });
 
-// ✅ score is always computable (used in both modes)
+// ✅ score is always computable
 const score = computed(() => {
   if (!questions.value.length) return 0;
   let correct = 0;
@@ -366,11 +422,13 @@ async function startQuickDrill() {
     questions.value = [];
     questionRefs.value = [];
     explanationsLoading.value = false;
-    questionResults.value = {};
     stopTimer();
     timerSeconds.value = 0;
 
-    const data = await getQuickDrill(props.courseId, drillSize.value);
+    // When "all" is selected, pass null (or adjust to what your API expects)
+    const sizeParam = drillSize.value === "all" ? null : drillSize.value;
+
+    const data = await getQuickDrill(props.courseId, sizeParam);
     if (!Array.isArray(data) || data.length === 0) {
       drillError.value = "No questions available for this course yet.";
       emitProgress("idle");
@@ -402,47 +460,29 @@ async function startQuickDrill() {
   }
 }
 
-async function selectAnswer(questionId, optionKey) {
+function selectAnswer(questionId, optionKey) {
   // END MODE: don’t allow changing after results are shown
-  if (!isInstantMode.value && showResults.value) return;
+  if (showResults.value) return;
 
   userAnswers.value = {
     ...userAnswers.value,
     [questionId]: optionKey,
   };
 
-  const q = questions.value.find((x) => x.id === questionId);
-
-  if (q && isInstantMode.value) {
-    // ✅ Mark this question immediately as correct / incorrect
-    const result = optionKey === q.correct_option ? "correct" : "incorrect";
-    questionResults.value = {
-      ...questionResults.value,
-      [questionId]: result,
-    };
-
-    // 🔍 Fetch explanation for THIS question only (instant explanations)
-    try {
-      if (!q.explanation || !q.explanation.trim()) {
-        const data = await getQuestionExplanation(q.id);
-        q.explanation = data.explanation;
-      }
-    } catch (e) {
-      console.error("Failed to load explanation", e);
-      showToast("Could not load explanation for this question.", "error");
-    }
-  }
-
   // Update parent progress
   emitProgress("active");
 }
 
 function saveLastDrill() {
+  // For "all" mode, store the actual number of questions for display
+  const effectiveSize =
+    drillSize.value === "all" ? totalQuestions.value : drillSize.value;
+
   const record = {
     courseId: props.courseId,
     score: score.value,
     total: totalQuestions.value,
-    drillSize: drillSize.value,
+    drillSize: effectiveSize,
     date: new Date().toISOString(),
   };
 
@@ -473,6 +513,22 @@ function loadLastDrill() {
   }
 }
 
+function isQuestionCorrect(q) {
+  const ans = userAnswers.value[q.id];
+  return !!ans && ans === q.correct_option;
+}
+
+function correctAnswerText(q) {
+  const label = q.correct_option;
+  let text = "";
+  if (label === "A") text = q.option_a;
+  else if (label === "B") text = q.option_b;
+  else if (label === "C") text = q.option_c;
+  else if (label === "D") text = q.option_d;
+
+  return `${label}. ${text}`;
+}
+
 async function submitDrill() {
   if (!questions.value.length) return;
 
@@ -482,6 +538,10 @@ async function submitDrill() {
 
   const total = totalQuestions.value;
   const correct = score.value;
+
+  // For stats, use actual question count when in "all" mode
+  const drillSizeForStats =
+    drillSize.value === "all" ? totalQuestions.value : drillSize.value;
 
   // Mark as completed for external progress bar
   emitProgress("completed");
@@ -493,7 +553,7 @@ async function submitDrill() {
       num_questions: total,
       num_correct: correct,
       title: "Quick drill",
-      drill_size: drillSize.value,
+      drill_size: drillSizeForStats,
       duration_seconds: timerSeconds.value,
     });
 
@@ -512,13 +572,11 @@ async function submitDrill() {
     courseId: props.courseId,
     score: correct,
     total,
-    drillSize: drillSize.value,
+    drillSize: drillSizeForStats,
     date: new Date().toISOString(),
   });
 
-  // 🔁 Explanations behaviour:
-  // - END MODE: bulk-load all missing explanations
-  // - INSTANT MODE: we already fetched some per question, so we only fill the rest
+  // 🔁 Explanations behaviour: bulk-load all missing explanations
   const pending = questions.value.filter(
     (q) => !q.explanation || !q.explanation.trim()
   );
@@ -526,10 +584,7 @@ async function submitDrill() {
   if (!pending.length) return;
 
   try {
-    if (!isInstantMode.value) {
-      // 🚨 Show loading indicator only in end mode
-      explanationsLoading.value = true;
-    }
+    explanationsLoading.value = true;
 
     await Promise.all(
       pending.map(async (q) => {
@@ -552,43 +607,23 @@ function resetDrill() {
   drillError.value = null;
   questionRefs.value = [];
   explanationsLoading.value = false;
-  questionResults.value = {};
   stopTimer();
   timerSeconds.value = 0;
   emitProgress("idle");
 }
 
-// class helper for options
+// class helper for options (END MODE ONLY)
 function optionClass(q, opt) {
   const selected = userAnswers.value[q.id];
 
-  // INSTANT MODE: use per-question result if available
-  if (isInstantMode.value) {
-    const result = questionResults.value[q.id]; // 'correct' | 'incorrect' | undefined
-
-    // Before answer is marked, just highlight selected
-    if (!result) {
-      return {
-        selected: selected === opt,
-      };
-    }
-
-    const isCorrectOption = opt === q.correct_option;
-    const isSelected = selected === opt;
-
-    return {
-      correct: isCorrectOption,
-      incorrect: !isCorrectOption && isSelected,
-      selected: isSelected,
-    };
-  }
-
-  // END MODE: old behaviour (only after submit)
+  // Before submit: just highlight selected option
   if (!showResults.value) {
     return {
       selected: selected === opt,
     };
   }
+
+  // After submit: show correct / incorrect
   const isCorrect = q.correct_option === opt;
   const isSelected = selected === opt;
 
@@ -796,6 +831,12 @@ watch(
   cursor: default;
 }
 
+.drill-size-hint {
+  margin-top: 0.15rem;
+  font-size: 0.7rem;
+  color: #9ca3af;
+}
+
 /* ALERT */
 .quick-alert {
   margin-top: 0.5rem;
@@ -894,7 +935,10 @@ watch(
   font-size: 0.85rem;
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease,
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease,
     transform 0.1s ease;
 }
 
@@ -929,21 +973,121 @@ watch(
   background: #fef2f2;
 }
 
-/* EXPLANATION */
-.explanation-text {
-  margin-top: 0.5rem;
-  font-size: 0.8rem;
-  padding: 0.5rem 0.75rem;
-  border-radius: 0.75rem;
-  background: #f3f4f6;
-  border-left: 3px solid #4f46e5;
-  color: #374151;
-  display: flex;
-  gap: 0.25rem;
+/* EXPLANATION UI */
+.explanation-wrapper {
+  margin-top: 0.6rem;
 }
 
-.explanation-label {
+.explanation-card {
+  border-radius: 0.9rem;
+  padding: 0.65rem 0.8rem;
+  background: radial-gradient(circle at top left, #eef2ff, #f9fafb);
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.05);
+  font-size: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.explanation-card--correct {
+  border-color: #bbf7d0;
+  background: linear-gradient(135deg, #ecfdf3, #f9fafb);
+}
+
+.explanation-card--incorrect {
+  border-color: #fecaca;
+  background: linear-gradient(135deg, #fef2f2, #f9fafb);
+}
+
+.explanation-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.explanation-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(79, 70, 229, 0.06);
+  color: #4f46e5;
+  font-size: 0.7rem;
+  font-weight: 500;
+}
+
+.explanation-dot {
+  width: 0.35rem;
+  height: 0.35rem;
+  border-radius: 999px;
+  background: #4f46e5;
+}
+
+.explanation-result {
+  font-size: 0.7rem;
   font-weight: 600;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+}
+
+.explanation-result--correct {
+  background: rgba(22, 163, 74, 0.08);
+  color: #15803d;
+}
+
+.explanation-result--incorrect {
+  background: rgba(220, 38, 38, 0.08);
+  color: #b91c1c;
+}
+
+.explanation-body {
+  color: #374151;
+  line-height: 1.4;
+}
+
+.explanation-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.1rem;
+  font-size: 0.75rem;
+}
+
+.meta-label {
+  font-weight: 600;
+  color: #4b5563;
+}
+
+.meta-value {
+  color: #111827;
+}
+
+/* LOCKED / UNAVAILABLE STATES */
+.explanation-locked {
+  margin-top: 0.4rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 0.75rem;
+  border: 1px dashed #e5e7eb;
+  background: #f9fafb;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.explanation-locked--warning {
+  border-style: solid;
+  border-color: #fed7aa;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.locked-icon {
+  font-size: 0.9rem;
 }
 
 /* FOOTER */
