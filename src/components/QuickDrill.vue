@@ -271,6 +271,17 @@
             </button>
           </div>
 
+          <!-- Button to ask Jabuspark about this specific question -->
+          <div class="question-ai-row">
+            <button
+              type="button"
+              class="question-ask-ai"
+              @click="askJabusparkAboutQuestion(q)"
+            >
+              💬 Ask Jabuspark to explain this question
+            </button>
+          </div>
+
           <!-- 🧠 Explanation block -->
           <div
             v-if="shouldShowExplanation(q)"
@@ -429,7 +440,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["toast", "completed", "progress"]);
+const emit = defineEmits(["toast", "completed", "progress", "ask-ai"]);
 
 function showToast(message, type = "success") {
   emit("toast", { message, type });
@@ -662,6 +673,72 @@ function loadActiveDrillSnapshot() {
     console.error("Failed to load active drill snapshot", e);
     return false;
   }
+}
+
+/* 👉 BUILDER: prompt for Ask Jabuspark */
+function buildAiPromptForQuestion(q) {
+  const chosen = userAnswers.value[q.id];
+
+  const chosenText =
+    chosen === "A"
+      ? q.option_a
+      : chosen === "B"
+      ? q.option_b
+      : chosen === "C"
+      ? q.option_c
+      : chosen === "D"
+      ? q.option_d
+      : null;
+
+  const correctLabel = q.correct_option;
+  const correctText =
+    correctLabel === "A"
+      ? q.option_a
+      : correctLabel === "B"
+      ? q.option_b
+      : correctLabel === "C"
+      ? q.option_c
+      : q.option_d;
+
+  const studentLine = chosen
+    ? `I chose option ${chosen}: "${chosenText}".`
+    : "I have not chosen any option yet.";
+
+  return [
+    "You are tutoring a university student preparing for an exam. Explain this multiple-choice question step by step:",
+    "",
+    `QUESTION: ${q.question_text}`,
+    "",
+    "OPTIONS:",
+    `A. ${q.option_a}`,
+    `B. ${q.option_b}`,
+    `C. ${q.option_c}`,
+    `D. ${q.option_d}`,
+    "",
+    studentLine,
+    `The correct answer (based on the marking guide) is option ${correctLabel}: "${correctText}".`,
+    "",
+    "Please do ALL of the following in your answer:",
+    "1. Start with a very short direct answer (1–2 sentences).",
+    "2. Then give a clear, simple explanation in plain language.",
+    "3. Explain WHY the correct option is correct.",
+    "4. Briefly explain why each of the other options is wrong.",
+    "5. End with 2–3 short exam tips or mnemonics for remembering this concept.",
+  ].join("\n");
+}
+
+/* Trigger: ask Jabuspark about this question */
+function askJabusparkAboutQuestion(q) {
+  const prompt = buildAiPromptForQuestion(q);
+
+  emit("ask-ai", {
+    from: "quick-drill",
+    courseId: props.courseId,
+    questionId: q.id,
+    prompt,
+  });
+
+  showToast("Opened Ask Jabuspark with this question context.", "info");
 }
 
 /* MAIN ACTIONS */
@@ -1437,6 +1514,38 @@ watch(
 .question-jump:hover {
   background: #e5e7eb;
   color: #111827;
+}
+
+/* Ask AI row */
+.question-ai-row {
+  margin-top: 0.45rem;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.question-ask-ai {
+  border-radius: 999px;
+  border: 1px dashed #c7d2fe;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.75rem;
+  background: #eef2ff;
+  color: #4338ca;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.08s ease;
+}
+
+.question-ask-ai:hover {
+  background: #e0e7ff;
+  border-color: #a5b4fc;
+  box-shadow: 0 6px 16px rgba(79, 70, 229, 0.25);
+  transform: translateY(-1px);
 }
 
 /* OPTIONS */

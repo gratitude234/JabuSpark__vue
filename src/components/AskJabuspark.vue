@@ -91,7 +91,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 
 const props = defineProps({
   courseId: {
@@ -102,11 +102,27 @@ const props = defineProps({
     type: Object,
     default: null,
   },
+  // 🔹 New: allows QuickDrill / parent to prefill the question textarea
+  initialQuestion: {
+    type: String,
+    default: "",
+  },
 });
 
 const emit = defineEmits(["toast"]);
 
 const question = ref("");
+
+// Keep question in sync with initialQuestion from parent
+watch(
+  () => props.initialQuestion,
+  (val) => {
+    if (val && val.trim()) {
+      question.value = val;
+    }
+  },
+  { immediate: true }
+);
 
 // --- ASK JABUSPARK (GEMINI) STATE ---
 const aiLoading = ref(false);
@@ -178,7 +194,7 @@ function getAuthToken() {
 async function copyAnswer() {
   if (!aiAnswer.value) return;
   try {
-    // For now just copy the original markdown text (you can change to plain if you like)
+    // Copy the original markdown text
     await navigator.clipboard.writeText(aiAnswer.value);
     showToast("Answer copied to clipboard.", "success");
   } catch {

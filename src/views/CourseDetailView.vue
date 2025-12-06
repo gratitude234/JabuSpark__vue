@@ -68,8 +68,8 @@
           <QuickDrill
             v-if="showInlineQuickDrill"
             :course-id="courseId"
-            feedback-mode="instant"
             @toast="handleToast"
+            @ask-ai="handleAskFromDrill"
           />
         </transition>
       </div>
@@ -79,6 +79,7 @@
         <AskJabuspark
           :course-id="courseId"
           :course="course"
+          :initial-question="askInitialQuestion"
           @toast="handleToast"
         />
       </aside>
@@ -128,8 +129,8 @@
         >
           <QuickDrill
             :course-id="courseId"
-            feedback-mode="instant"
             @toast="handleToast"
+            @ask-ai="handleAskFromDrill"
           />
         </div>
 
@@ -137,6 +138,7 @@
           v-else
           :course-id="courseId"
           :course="course"
+          :initial-question="askInitialQuestion"
           @toast="handleToast"
         />
       </div>
@@ -145,7 +147,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, computed, watch } from "vue";
+import { ref, onMounted, onBeforeUnmount, watch } from "vue";
 import { useRoute } from "vue-router";
 import { getCourse } from "../services/courses";
 
@@ -172,6 +174,9 @@ const activeMobileTab = ref("materials"); // 'materials' | 'drill' | 'ai'
 
 // Inline drill toggle (desktop)
 const showInlineQuickDrill = ref(false);
+
+// 🔹 For passing a prefilled question into AskJabuspark
+const askInitialQuestion = ref("");
 
 // ---------- HELPERS & STATE ----------
 
@@ -216,6 +221,24 @@ async function loadCourse() {
 
 function toggleInlineQuickDrill() {
   showInlineQuickDrill.value = !showInlineQuickDrill.value;
+}
+
+// 🔹 When QuickDrill says “ask-ai”, prefill AskJabuspark & focus it
+function handleAskFromDrill(payload) {
+  askInitialQuestion.value = payload?.prompt || "";
+
+  if (isMobile.value) {
+    // On mobile, jump to the AI tab
+    activeMobileTab.value = "ai";
+  } else if (typeof window !== "undefined") {
+    // On desktop, scroll Ask Jabuspark into view
+    requestAnimationFrame(() => {
+      const el = document.querySelector(".ask-card");
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
+  }
 }
 
 // 👀 Keep the drill tab / inline drill in sync with query (?tab=drill, ?drillId=...)
