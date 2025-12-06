@@ -156,6 +156,9 @@
         </button>
       </div>
     </nav>
+
+    <!-- PWA Install banner -->
+    <PwaInstallBanner />
   </div>
 </template>
 
@@ -165,6 +168,9 @@ import { useRoute, RouterLink } from "vue-router";
 
 // ✅ IMPORT LOGO
 import Logo from "../assets/logo.jpg";
+
+// ✅ IMPORT PWA INSTALL BANNER
+import PwaInstallBanner from "@/components/PwaInstallBanner.vue";
 
 const route = useRoute();
 const mobileOpen = ref(false);
