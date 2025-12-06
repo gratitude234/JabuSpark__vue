@@ -387,7 +387,18 @@
             New drill
           </button>
 
+          <!-- 🔴 Explicit end button for active drills -->
           <button
+            v-if="questions.length && !showResults"
+            class="btn btn-ghost btn-danger"
+            @click="endDrill"
+          >
+            End drill
+          </button>
+
+          <!-- Fallback clear (e.g. after results or no drill at all) -->
+          <button
+            v-else
             class="btn btn-ghost"
             @click="resetDrill"
           >
@@ -874,6 +885,22 @@ function resetDrill() {
   timerSeconds.value = 0;
   emitProgress("idle");
   clearActiveDrillSnapshot();
+}
+
+// 🔴 Explicit end-drill handler so user can intentionally discard a session
+function endDrill() {
+  if (!questions.value.length) return;
+
+  let confirmed = true;
+  if (typeof window !== "undefined") {
+    confirmed = window.confirm(
+      "End this drill and clear your progress? You’ll be able to change your settings and start a new one."
+    );
+  }
+  if (!confirmed) return;
+
+  resetDrill();
+  showToast("Drill ended. You can change your settings and start a new one.", "info");
 }
 
 // ✅ FIXED: no pre-highlighting in INSTANT MODE before user selects
@@ -1632,6 +1659,16 @@ watch(
 
 .score-pill-value {
   font-weight: 700;
+}
+
+/* 🔴 End drill styling */
+.btn-danger {
+  color: #b91c1c;
+}
+
+.btn-danger:hover {
+  background: #fef2f2;
+  color: #7f1d1d;
 }
 
 /* MOBILE */
