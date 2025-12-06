@@ -113,12 +113,54 @@ const aiLoading = ref(false);
 const aiError = ref("");
 const aiAnswer = ref("");
 
+// Escape HTML first so user content stays safe
+function escapeHtml(text) {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+// Very small markdown → HTML renderer
+function renderMarkdown(raw) {
+  if (!raw) return "";
+  let text = String(raw);
+
+  // 1. Escape any HTML
+  text = escapeHtml(text);
+
+  // 2. Headings: ###, ##, #
+  text = text.replace(/^###\s+(.+)$/gm, "<strong>$1</strong><br />");
+  text = text.replace(/^##\s+(.+)$/gm, "<strong>$1</strong><br />");
+  text = text.replace(/^#\s+(.+)$/gm, "<strong>$1</strong><br />");
+
+  // 3. Bold: **text** or __text__
+  text = text.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  text = text.replace(/__(.+?)__/g, "<strong>$1</strong>");
+
+  // 4. Italic: *text* or _text_
+  text = text.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+  text = text.replace(/_([^_]+)_/g, "<em>$1</em>");
+
+  // 5. Inline code: `code`
+  text = text.replace(/`([^`]+)`/g, "<code>$1</code>");
+
+  // 6. Bullet lists: - item / * item / + item  (keep them inline, just use •)
+  text = text.replace(/^\s*[-*+]\s+(.+)$/gm, "• $1");
+
+  // 7. Numbered lists: 1. item
+  text = text.replace(/^\s*(\d+)\.\s+(.+)$/gm, "$1) $2");
+
+  // 8. Line breaks
+  text = text.replace(/\n/g, "<br />");
+
+  return text;
+}
+
 const questionLength = computed(() => question.value.trim().length);
 
 const formattedAiAnswer = computed(() => {
-  if (!aiAnswer.value) return "";
-  // Simple line-break to <br> formatting
-  return aiAnswer.value.replace(/\n/g, "<br />");
+  return renderMarkdown(aiAnswer.value);
 });
 
 function showToast(message, type = "success") {
@@ -136,6 +178,7 @@ function getAuthToken() {
 async function copyAnswer() {
   if (!aiAnswer.value) return;
   try {
+    // For now just copy the original markdown text (you can change to plain if you like)
     await navigator.clipboard.writeText(aiAnswer.value);
     showToast("Answer copied to clipboard.", "success");
   } catch {
@@ -344,17 +387,6 @@ async function handleAsk() {
   border-color: #d1d5db;
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
   transform: translateY(-1px);
-}
-
-@keyframes fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(3px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 /* mobile */
