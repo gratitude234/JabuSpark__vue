@@ -2,10 +2,22 @@
 import api from "./api";
 
 // Student: get random drill questions for a course
-export async function getQuickDrill(courseId, limit = 10) {
-  const res = await api.get("/questions.php", {
-    params: { course_id: courseId, limit },
+export async function getQuickDrill(courseId, numQuestions) {
+  const params = {
+    course_id: courseId,
+  };
+
+  // Only send num_questions when we actually want to limit
+  // 5, 10, 20 → send the number
+  // "all" / null / undefined → send nothing = full bank
+  if (typeof numQuestions === "number" && numQuestions > 0) {
+    params.num_questions = numQuestions;
+  }
+
+  const res = await api.get("/questions/list.php", {
+    params,
   });
+
   return res.data;
 }
 
