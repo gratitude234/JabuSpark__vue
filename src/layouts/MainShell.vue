@@ -6,9 +6,13 @@
       <div class="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
         <!-- LEFT: Brand -->
         <RouterLink to="/dashboard" class="flex items-center gap-3">
-          <div class="flex h-9 w-9 items-center justify-center rounded-2xl bg-indigo-600 text-white font-semibold">
-            J
-          </div>
+          <!-- LOGO -->
+          <img
+            :src="Logo"
+            alt="Jabuspark Logo"
+            class="h-10 w-auto object-contain"
+          />
+
           <div class="hidden sm:block leading-tight">
             <p class="text-sm font-semibold text-slate-900">Jabuspark</p>
             <p class="text-[11px] text-slate-500">Study hub for uni students</p>
@@ -158,6 +162,9 @@
 <script setup>
 import { ref, computed } from "vue";
 import { useRoute, RouterLink } from "vue-router";
+
+// ✅ IMPORT LOGO
+import Logo from "../assets/logo.jpg";
 
 const route = useRoute();
 const mobileOpen = ref(false);
