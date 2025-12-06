@@ -8,6 +8,13 @@ export default defineConfig({
     vue(),
     VitePWA({
       registerType: "autoUpdate",
+
+      // Enable PWA in dev so you can test install
+      devOptions: {
+        enabled: true,
+        type: "module",
+      },
+
       manifest: {
         name: "Jabuspark",
         short_name: "Jabuspark",
@@ -18,21 +25,22 @@ export default defineConfig({
         orientation: "portrait",
         scope: "/",
         start_url: "/",
+
         icons: [
           {
-            src: "logo.jpg",        // 192 icon (uses same file)
+            src: "/pwa-192x192.png", // your JS lightning logo (192x192)
             sizes: "192x192",
-            type: "image/jpeg",
+            type: "image/png",
           },
           {
-            src: "logo.jpg",        // 512 icon
+            src: "/pwa-512x512.png", // your JS lightning logo (512x512)
             sizes: "512x512",
-            type: "image/jpeg",
+            type: "image/png",
           },
           {
-            src: "logo.jpg",        // maskable icon
+            src: "/pwa-512x512-maskable.png", // maskable version
             sizes: "512x512",
-            type: "image/jpeg",
+            type: "image/png",
             purpose: "maskable",
           },
         ],

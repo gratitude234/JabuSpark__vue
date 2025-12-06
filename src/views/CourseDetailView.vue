@@ -34,6 +34,7 @@
           :course-id="courseId"
           :course="course"
           @toast="handleToast"
+          @start-drill="handleStartDrillFromMaterial"
         />
 
         <!-- Quick drill controls card -->
@@ -42,8 +43,14 @@
             <div>
               <h2>Quick drill for this course</h2>
               <p class="card-sub">
-                Short MCQs to quickly test yourself on
-                {{ course?.code || "this course" }}.
+                <span v-if="activeDrillMaterial">
+                  Short MCQs based on
+                  <strong>{{ activeDrillMaterial.title }}</strong>.
+                </span>
+                <span v-else>
+                  Short MCQs to quickly test yourself on
+                  {{ course?.code || "this course" }}.
+                </span>
               </p>
             </div>
 
@@ -59,7 +66,13 @@
           </div>
 
           <p class="hint">
-            Use the quick drill whenever you want fast, exam-style practice for this course.
+            Use the quick drill whenever you want fast, exam-style practice
+            <span v-if="activeDrillMaterial">
+              for <strong>{{ activeDrillMaterial.title }}</strong>.
+            </span>
+            <span v-else>
+              for this course.
+            </span>
           </p>
         </section>
 
@@ -67,7 +80,10 @@
         <transition name="fade-slide">
           <QuickDrill
             v-if="showInlineQuickDrill"
+            ref="quickDrillRef"
             :course-id="courseId"
+            :material-id="activeDrillMaterial?.id || null"
+            :material-title="activeDrillMaterial?.title || ''"
             @toast="handleToast"
             @ask-ai="handleAskFromDrill"
           />
@@ -80,7 +96,10 @@
           :course-id="courseId"
           :course="course"
           :initial-question="askInitialQuestion"
+          :auto-ask-token="askAutoToken"
+          :can-jump-back-to-drill="lastDrillQuestionIndex !== null"
           @toast="handleToast"
+          @back-to-drill="handleBackToDrill"
         />
       </aside>
     </div>
@@ -120,6 +139,7 @@
           :course-id="courseId"
           :course="course"
           @toast="handleToast"
+          @start-drill="handleStartDrillFromMaterial"
         />
 
         <!-- On mobile, drill is always visible inside its tab -->
@@ -128,7 +148,10 @@
           class="space-y-2"
         >
           <QuickDrill
+            ref="quickDrillRef"
             :course-id="courseId"
+            :material-id="activeDrillMaterial?.id || null"
+            :material-title="activeDrillMaterial?.title || ''"
             @toast="handleToast"
             @ask-ai="handleAskFromDrill"
           />
@@ -139,7 +162,10 @@
           :course-id="courseId"
           :course="course"
           :initial-question="askInitialQuestion"
+          :auto-ask-token="askAutoToken"
+          :can-jump-back-to-drill="lastDrillQuestionIndex !== null"
           @toast="handleToast"
+          @back-to-drill="handleBackToDrill"
         />
       </div>
     </div>
@@ -147,7 +173,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, watch } from "vue";
+import {
+  ref,
+  onMounted,
+  onBeforeUnmount,
+  watch,
+  nextTick,
+} from "vue";
 import { useRoute } from "vue-router";
 import { getCourse } from "../services/courses";
 
@@ -168,15 +200,27 @@ const toast = ref({
   type: "success", // 'success' | 'error'
 });
 
-// --- Mobile tab state ---
+// --- Mobile / layout state ---
 const isMobile = ref(false);
 const activeMobileTab = ref("materials"); // 'materials' | 'drill' | 'ai'
 
 // Inline drill toggle (desktop)
 const showInlineQuickDrill = ref(false);
 
-// 🔹 For passing a prefilled question into AskJabuspark
+// Active drill context: null = whole course, { id, title, ... } = material-based
+const activeDrillMaterial = ref(null);
+
+// Ref to QuickDrill to be able to scroll back to a question
+const quickDrillRef = ref(null);
+
+// For passing a prefilled question into AskJabuspark
 const askInitialQuestion = ref("");
+
+// 🔹 Token to trigger auto-send in AskJabuspark
+const askAutoToken = ref(0);
+
+// 🔹 Remember which drill question we came from
+const lastDrillQuestionIndex = ref(null);
 
 // ---------- HELPERS & STATE ----------
 
@@ -220,18 +264,60 @@ async function loadCourse() {
 }
 
 function toggleInlineQuickDrill() {
-  showInlineQuickDrill.value = !showInlineQuickDrill.value;
+  const next = !showInlineQuickDrill.value;
+  showInlineQuickDrill.value = next;
+
+  // If user manually opens the drill from the header,
+  // reset to whole-course drill (not tied to a specific material)
+  if (next) {
+    activeDrillMaterial.value = null;
+  }
 }
 
-// 🔹 When QuickDrill says “ask-ai”, prefill AskJabuspark & focus it
-function handleAskFromDrill(payload) {
-  askInitialQuestion.value = payload?.prompt || "";
+/**
+ * When a material card wants to start a drill:
+ *  - material: object from CourseMaterials (at least { id, title })
+ */
+function handleStartDrillFromMaterial(material) {
+  activeDrillMaterial.value = material || null;
 
   if (isMobile.value) {
-    // On mobile, jump to the AI tab
+    activeMobileTab.value = "drill";
+  } else {
+    showInlineQuickDrill.value = true;
+    // Scroll the drill card into view
+    nextTick(() => {
+      const el = document.querySelector(".quick-drill-card");
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
+  }
+
+  handleToast({
+    message: `Quick drill started for ${
+      material?.title || course.value?.code || "this course"
+    }.`,
+    type: "success",
+  });
+}
+
+/**
+ * When QuickDrill emits "ask-ai":
+ *  - payload.prompt: text we want to ask
+ *  - payload.questionIndex: index of question in the drill
+ */
+function handleAskFromDrill(payload) {
+  const prompt = (payload?.prompt || "").trim();
+
+  askInitialQuestion.value = prompt;
+  lastDrillQuestionIndex.value =
+    typeof payload?.questionIndex === "number" ? payload.questionIndex : null;
+
+  // 1) Move UI to Ask Jabuspark
+  if (isMobile.value) {
     activeMobileTab.value = "ai";
   } else if (typeof window !== "undefined") {
-    // On desktop, scroll Ask Jabuspark into view
     requestAnimationFrame(() => {
       const el = document.querySelector(".ask-card");
       if (el) {
@@ -239,13 +325,39 @@ function handleAskFromDrill(payload) {
       }
     });
   }
+
+  // 2) Trigger auto-send in AskJabuspark
+  askAutoToken.value++;
+}
+
+/**
+ * Handle "Back to drill question" from AskJabuspark
+ */
+function handleBackToDrill() {
+  const idx = lastDrillQuestionIndex.value;
+
+  if (isMobile.value) {
+    activeMobileTab.value = "drill";
+  } else {
+    showInlineQuickDrill.value = true;
+  }
+
+  if (idx == null) return;
+
+  // Wait for QuickDrill to be rendered, then ask it to scroll
+  nextTick(() => {
+    const inst = quickDrillRef.value;
+    if (
+      inst &&
+      typeof inst.scrollToQuestionFromOutside === "function"
+    ) {
+      inst.scrollToQuestionFromOutside(idx);
+    }
+  });
 }
 
 // 👀 Keep the drill tab / inline drill in sync with query (?tab=drill, ?drillId=...)
-// This reacts to:
-//  - route.query.drillId (e.g. ?drillId=new or ?drillId=123)
-//  - route.query.tab (e.g. ?tab=drill | ai | materials)
-//  - isMobile (so resizing also respects the query)
+// Note: drillId may represent a specific material drill; for now we just open the drill.
 watch(
   () => [route.query.drillId, route.query.tab, isMobile.value],
   ([drillId, tab]) => {

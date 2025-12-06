@@ -1,3 +1,4 @@
+<!-- src/components/AskJabuspark.vue -->
 <template>
   <section class="card ask-card">
     <div class="card-header">
@@ -68,19 +69,45 @@
 
     <div v-if="aiAnswer" class="ai-answer">
       <div class="ai-answer-header">
-        <p class="ai-answer-label">Jabuspark</p>
-        <button
-          type="button"
-          class="ai-copy-btn"
-          @click="copyAnswer"
-        >
-          Copy
-        </button>
+        <div class="ai-answer-header-left">
+          <p class="ai-answer-label">Jabuspark</p>
+          <span
+            v-if="aiCached"
+            class="ai-answer-badge"
+          >
+            From Jabuspark memory
+          </span>
+        </div>
+
+        <div class="ai-answer-header-right">
+          <button
+            type="button"
+            class="ai-copy-btn"
+            @click="copyAnswer"
+          >
+            Copy
+          </button>
+
+          <button
+            v-if="canJumpBackToDrill"
+            type="button"
+            class="ai-back-btn"
+            @click="$emit('back-to-drill')"
+          >
+            ← Back to drill question
+          </button>
+        </div>
       </div>
+
       <p
         class="ai-answer-text"
         v-html="formattedAiAnswer"
       ></p>
+
+      <p v-if="aiCached" class="ai-answer-footnote">
+        This explanation was reused from a previous student question for this course
+        to save time and API usage.
+      </p>
     </div>
 
     <p class="muted">
@@ -102,14 +129,24 @@ const props = defineProps({
     type: Object,
     default: null,
   },
-  // 🔹 New: allows QuickDrill / parent to prefill the question textarea
+  // Prefill from parent (e.g. QuickDrill)
   initialQuestion: {
     type: String,
     default: "",
   },
+  // 🔹 When this changes, auto-send the current initialQuestion
+  autoAskToken: {
+    type: Number,
+    default: 0,
+  },
+  // 🔹 If true, show "Back to drill question" button
+  canJumpBackToDrill: {
+    type: Boolean,
+    default: false,
+  },
 });
 
-const emit = defineEmits(["toast"]);
+const emit = defineEmits(["toast", "back-to-drill"]);
 
 const question = ref("");
 
@@ -124,10 +161,27 @@ watch(
   { immediate: true }
 );
 
+// 🔹 Auto-send when autoAskToken changes
+watch(
+  () => props.autoAskToken,
+  async (newVal, oldVal) => {
+    if (!newVal || newVal === oldVal) return;
+    const q = (props.initialQuestion || "").trim();
+    if (!q) return;
+
+    // Make sure textarea reflects the latest prompt
+    question.value = q;
+
+    // Trigger send
+    await handleAsk();
+  }
+);
+
 // --- ASK JABUSPARK (GEMINI) STATE ---
 const aiLoading = ref(false);
 const aiError = ref("");
 const aiAnswer = ref("");
+const aiCached = ref(false); // came from cache?
 
 // Escape HTML first so user content stays safe
 function escapeHtml(text) {
@@ -161,7 +215,7 @@ function renderMarkdown(raw) {
   // 5. Inline code: `code`
   text = text.replace(/`([^`]+)`/g, "<code>$1</code>");
 
-  // 6. Bullet lists: - item / * item / + item  (keep them inline, just use •)
+  // 6. Bullet lists: - item / * item / + item
   text = text.replace(/^\s*[-*+]\s+(.+)$/gm, "• $1");
 
   // 7. Numbered lists: 1. item
@@ -206,6 +260,7 @@ async function copyAnswer() {
 async function handleAsk() {
   aiError.value = "";
   aiAnswer.value = "";
+  aiCached.value = false;
 
   const q = question.value.trim();
   if (!q) {
@@ -246,7 +301,15 @@ async function handleAsk() {
     aiAnswer.value =
       (data && data.answer) ||
       "I couldn't generate an answer right now. Please try again.";
-    showToast("Answer ready.", "success");
+
+    // detect cache from backend
+    aiCached.value = !!(data && data.cached);
+
+    if (aiCached.value) {
+      showToast("Loaded from Jabuspark memory.", "success");
+    } else {
+      showToast("Answer ready.", "success");
+    }
   } catch (err) {
     console.error(err);
     aiError.value = "Could not reach Jabuspark AI. Please try again.";
@@ -381,6 +444,49 @@ async function handleAsk() {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 0.25rem;
+  gap: 0.5rem;
+}
+
+.ai-answer-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.ai-answer-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.ai-answer-label {
+  font-weight: 600;
+  color: #4b5563;
+}
+
+/* badge for cached answers */
+.ai-answer-badge {
+  font-size: 0.7rem;
+  padding: 0.16rem 0.55rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ecfdf3, #e0f2fe);
+  border: 1px solid #bbf7d0;
+  color: #166534;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  white-space: nowrap;
+}
+
+.ai-answer-badge::before {
+  content: "⏱";
+  font-size: 0.75rem;
+}
+
+.ai-answer-footnote {
+  margin-top: 0.35rem;
+  font-size: 0.72rem;
+  color: #6b7280;
 }
 
 .ai-copy-btn {
@@ -405,6 +511,29 @@ async function handleAsk() {
   transform: translateY(-1px);
 }
 
+/* back to drill button */
+.ai-back-btn {
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  padding: 0.2rem 0.75rem;
+  font-size: 0.7rem;
+  background: #f9fafb;
+  color: #2563eb;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.1s ease;
+}
+
+.ai-back-btn:hover {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.25);
+  transform: translateY(-1px);
+}
+
 /* mobile */
 @media (max-width: 640px) {
   .chat-form-footer {
@@ -414,6 +543,17 @@ async function handleAsk() {
 
   .chat-hint {
     max-width: 100%;
+  }
+
+  .ai-answer-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .ai-answer-header-right {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
   }
 }
 </style>

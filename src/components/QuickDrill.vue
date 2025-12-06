@@ -7,13 +7,30 @@
         <h2 class="quick-title">
           Quick drill
         </h2>
+
+        <!-- 🔁 Updated subtitle: reacts to materialId + drillSize -->
         <p class="card-sub quick-sub">
-          <span v-if="drillSize === 'all'">
-            All available MCQs to test your understanding of this course.
-          </span>
-          <span v-else>
-            {{ drillSize }} fast MCQs to test your understanding of this course.
-          </span>
+          <!-- Material-specific drill -->
+          <template v-if="materialId">
+            <span v-if="drillSize === 'all'">
+              All available MCQs linked to
+              <strong>{{ materialTitle || "this material" }}</strong>.
+            </span>
+            <span v-else>
+              {{ drillSize }} fast MCQs based on
+              <strong>{{ materialTitle || "this material" }}</strong>.
+            </span>
+          </template>
+
+          <!-- Course-level drill -->
+          <template v-else>
+            <span v-if="drillSize === 'all'">
+              All available MCQs to test your understanding of this course.
+            </span>
+            <span v-else>
+              {{ drillSize }} fast MCQs to test your understanding of this course.
+            </span>
+          </template>
         </p>
 
         <div class="quick-tags">
@@ -180,8 +197,14 @@
           No questions loaded yet.
         </p>
         <p class="quick-empty-copy">
-          Start a quick drill to generate fresh MCQs for this course based on
-          your materials.
+          <span v-if="materialId">
+            Start a quick drill to practice MCQs tied to
+            <strong>{{ materialTitle || "this material" }}</strong>.
+          </span>
+          <span v-else>
+            Start a quick drill to generate fresh MCQs for this course based on
+            your materials.
+          </span>
         </p>
         <div class="drill-actions-inline">
           <button
@@ -276,7 +299,7 @@
             <button
               type="button"
               class="question-ask-ai"
-              @click="askJabusparkAboutQuestion(q)"
+              @click="askJabusparkAboutQuestion(q, index)"
             >
               💬 Ask Jabuspark to explain this question
             </button>
@@ -438,6 +461,15 @@ const props = defineProps({
     type: Number,
     required: true,
   },
+  // NEW: material context
+  materialId: {
+    type: Number,
+    default: null,
+  },
+  materialTitle: {
+    type: String,
+    default: "",
+  },
 });
 
 const emit = defineEmits(["toast", "completed", "progress", "ask-ai"]);
@@ -595,7 +627,7 @@ function loadDrillModePreference() {
 
 /* 🔐 ACTIVE DRILL SNAPSHOT (for resume) */
 function saveActiveDrillSnapshot() {
-  // If no drill or drill is finished, clear any saved state for this course
+  // If no drill or drill is finished, clear any saved state for this course/material combo
   if (!questions.value.length || showResults.value) {
     clearActiveDrillSnapshot();
     return;
@@ -603,6 +635,7 @@ function saveActiveDrillSnapshot() {
 
   const snapshot = {
     courseId: props.courseId,
+    materialId: props.materialId || null,
     drillSize: drillSize.value,
     drillMode: drillMode.value,
     questions: questions.value,
@@ -615,7 +648,11 @@ function saveActiveDrillSnapshot() {
     const raw = localStorage.getItem(ACTIVE_DRILL_KEY);
     const arr = raw ? JSON.parse(raw) : [];
 
-    const filtered = arr.filter((r) => r.courseId !== props.courseId);
+    const filtered = arr.filter(
+      (r) =>
+        r.courseId !== props.courseId ||
+        (r.materialId || null) !== (props.materialId || null)
+    );
     filtered.push(snapshot);
 
     localStorage.setItem(ACTIVE_DRILL_KEY, JSON.stringify(filtered));
@@ -629,7 +666,11 @@ function clearActiveDrillSnapshot() {
     const raw = localStorage.getItem(ACTIVE_DRILL_KEY);
     if (!raw) return;
     const arr = JSON.parse(raw);
-    const filtered = arr.filter((r) => r.courseId !== props.courseId);
+    const filtered = arr.filter(
+      (r) =>
+        r.courseId !== props.courseId ||
+        (r.materialId || null) !== (props.materialId || null)
+    );
     localStorage.setItem(ACTIVE_DRILL_KEY, JSON.stringify(filtered));
   } catch (e) {
     console.error("Failed to clear active drill snapshot", e);
@@ -642,7 +683,11 @@ function loadActiveDrillSnapshot() {
     if (!raw) return false;
 
     const arr = JSON.parse(raw);
-    const found = arr.find((r) => r.courseId === props.courseId);
+    const found = arr.find(
+      (r) =>
+        r.courseId === props.courseId &&
+        (r.materialId || null) === (props.materialId || null)
+    );
     if (!found) return false;
 
     // Restore core state
@@ -728,13 +773,15 @@ function buildAiPromptForQuestion(q) {
 }
 
 /* Trigger: ask Jabuspark about this question */
-function askJabusparkAboutQuestion(q) {
+function askJabusparkAboutQuestion(q, index) {
   const prompt = buildAiPromptForQuestion(q);
 
   emit("ask-ai", {
     from: "quick-drill",
     courseId: props.courseId,
+    materialId: props.materialId || null,
     questionId: q.id,
+    questionIndex: index,
     prompt,
   });
 
@@ -757,9 +804,16 @@ async function startQuickDrill() {
 
     const sizeParam = drillSize.value === "all" ? null : drillSize.value;
 
-    const data = await getQuickDrill(props.courseId, sizeParam);
+    // 🔁 Pass materialId so backend filters by that material when present
+    const data = await getQuickDrill(
+      props.courseId,
+      sizeParam,
+      props.materialId || null
+    );
     if (!Array.isArray(data) || data.length === 0) {
-      drillError.value = "No questions available for this course yet.";
+      drillError.value = props.materialId
+        ? "No questions available for this material yet."
+        : "No questions available for this course yet.";
       emitProgress("idle");
       return;
     }
@@ -833,6 +887,7 @@ function saveLastDrill() {
 
   const record = {
     courseId: props.courseId,
+    // we keep last drill per course (not per material) for now
     score: score.value,
     total: totalQuestions.value,
     drillSize: effectiveSize,
@@ -901,9 +956,12 @@ async function submitDrill() {
       course_id: props.courseId,
       num_questions: total,
       num_correct: correct,
-      title: "Quick drill",
+      title: props.materialId
+        ? `Quick drill • ${props.materialTitle || "Material"}`
+        : "Quick drill",
       drill_size: drillSizeForStats,
       duration_seconds: timerSeconds.value,
+      material_id: props.materialId || null,
     });
 
     showToast("Drill completed!", "success");
@@ -916,6 +974,7 @@ async function submitDrill() {
 
   emit("completed", {
     courseId: props.courseId,
+    materialId: props.materialId || null,
     score: correct,
     total,
     drillSize: drillSizeForStats,
@@ -977,7 +1036,10 @@ function endDrill() {
   if (!confirmed) return;
 
   resetDrill();
-  showToast("Drill ended. You can change your settings and start a new one.", "info");
+  showToast(
+    "Drill ended. You can change your settings and start a new one.",
+    "info"
+  );
 }
 
 // ✅ FIXED: no pre-highlighting in INSTANT MODE before user selects
@@ -1034,6 +1096,10 @@ function scrollToQuestion(index) {
   });
 }
 
+function scrollToQuestionFromOutside(index) {
+  scrollToQuestion(index);
+}
+
 function isExplanationLoadingForQuestion(id) {
   return !!perQuestionExplanationLoading.value[id];
 }
@@ -1055,7 +1121,12 @@ onMounted(() => {
   const restored = loadActiveDrillSnapshot();
 
   if (restored) {
-    showToast("Resumed your last quick drill for this course.", "info");
+    showToast(
+      props.materialId
+        ? "Resumed your last quick drill for this material."
+        : "Resumed your last quick drill for this course.",
+      "info"
+    );
   } else {
     emitProgress("idle");
   }
@@ -1067,6 +1138,7 @@ onBeforeUnmount(() => {
   stopTimer();
 });
 
+// When course changes, reset + reload last drill
 watch(
   () => props.courseId,
   () => {
@@ -1074,6 +1146,21 @@ watch(
     resetDrill();
   }
 );
+
+// When material changes (e.g. clicking another "Drill this material"),
+// clear current drill and idle; user can start a fresh one.
+watch(
+  () => props.materialId,
+  () => {
+    resetDrill();
+    emitProgress("idle");
+  }
+);
+
+// 👇 Expose for parent (CourseDetailView) to jump back to a specific question
+defineExpose({
+  scrollToQuestionFromOutside,
+});
 </script>
 
 <style scoped>

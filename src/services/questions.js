@@ -1,8 +1,8 @@
 // src/services/questions.js
 import api from "./api";
 
-// Student: get random drill questions for a course
-export async function getQuickDrill(courseId, numQuestions) {
+// Student: get drill questions for a course (optionally for one material)
+export async function getQuickDrill(courseId, numQuestions, materialId = null) {
   const params = {
     course_id: courseId,
   };
@@ -14,9 +14,12 @@ export async function getQuickDrill(courseId, numQuestions) {
     params.num_questions = numQuestions;
   }
 
-  const res = await api.get("/questions/list.php", {
-    params,
-  });
+  // NEW: material-specific drill
+  if (materialId && Number(materialId) > 0) {
+    params.material_id = materialId;
+  }
+
+  const res = await api.get("/questions/list.php", { params });
 
   return res.data;
 }

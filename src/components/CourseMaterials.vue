@@ -20,7 +20,9 @@
           v-if="!loadingMaterials && materials.length"
           class="materials-stats-pill"
         >
-          <span v-if="pdfCount">{{ pdfCount }} PDF{{ pdfCount === 1 ? "" : "s" }}</span>
+          <span v-if="pdfCount">
+            {{ pdfCount }} PDF{{ pdfCount === 1 ? "" : "s" }}
+          </span>
           <span v-if="slideCount">
             <span v-if="pdfCount"> • </span>{{ slideCount }} slide{{ slideCount === 1 ? "" : "s" }}
           </span>
@@ -143,16 +145,27 @@
           </div>
         </div>
 
-        <a
-          class="pill-btn materials-open-btn"
-          :href="fileUrl(m.file_url)"
-          target="_blank"
-          rel="noopener noreferrer"
-          :title="`Open ${m.title}`"
-        >
-          <span>Open</span>
-          <span class="materials-open-icon">↗</span>
-        </a>
+        <!-- Actions: Open + Drill -->
+        <div class="materials-actions">
+          <a
+            class="pill-btn materials-open-btn"
+            :href="fileUrl(m.file_url)"
+            target="_blank"
+            rel="noopener noreferrer"
+            :title="`Open ${m.title}`"
+          >
+            <span>Open</span>
+            <span class="materials-open-icon">↗</span>
+          </a>
+
+          <button
+            type="button"
+            class="pill-btn materials-drill-btn"
+            @click="startDrillForMaterial(m)"
+          >
+            Drill this material
+          </button>
+        </div>
       </li>
     </ul>
   </section>
@@ -173,7 +186,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["toast"]);
+const emit = defineEmits(["toast", "start-drill"]);
 
 const materials = ref([]);
 const loadingMaterials = ref(false);
@@ -285,6 +298,11 @@ async function loadMaterials() {
   } finally {
     loadingMaterials.value = false;
   }
+}
+
+// --- DRILL HANDLER ---
+function startDrillForMaterial(material) {
+  emit("start-drill", material);
 }
 
 // --- UPLOAD HANDLERS ---
@@ -494,7 +512,13 @@ watch(
   font-size: 0.7rem;
 }
 
-/* open button */
+/* actions */
+.materials-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
 .materials-open-btn {
   gap: 0.25rem;
   font-weight: 500;
@@ -504,10 +528,26 @@ watch(
   font-size: 0.85rem;
 }
 
+.materials-drill-btn {
+  font-size: 0.8rem;
+  font-weight: 500;
+  border: 1px dashed #e5e7eb;
+  background: #f9fafb;
+}
+
 /* mobile tweaks */
 @media (max-width: 640px) {
   .materials-title-text {
     max-width: 100%;
+  }
+}
+
+@media (min-width: 640px) {
+  .materials-actions {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
   }
 }
 </style>
