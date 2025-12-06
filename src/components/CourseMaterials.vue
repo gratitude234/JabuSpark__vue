@@ -1,8 +1,8 @@
 <template>
   <section class="card card--materials materials-card">
-    <div class="card-header">
+    <div class="card-header materials-header">
       <div class="card-header-main">
-        <h2>Course materials</h2>
+        <h2 class="materials-title-main">Course materials</h2>
         <p class="card-sub">
           Notes, slides and past questions uploaded for this course.
         </p>
@@ -11,28 +11,30 @@
         </p>
       </div>
 
-      <div class="card-header-right">
-        <span class="badge">
-          {{ materials.length }} file{{ materials.length === 1 ? "" : "s" }}
-        </span>
+      <div class="card-header-right materials-header-right">
+        <div class="materials-header-stats">
+          <span class="badge materials-count-badge">
+            {{ materials.length }} file{{ materials.length === 1 ? "" : "s" }}
+          </span>
 
-        <span
-          v-if="!loadingMaterials && materials.length"
-          class="materials-stats-pill"
-        >
-          <span v-if="pdfCount">
-            {{ pdfCount }} PDF{{ pdfCount === 1 ? "" : "s" }}
+          <span
+            v-if="!loadingMaterials && materials.length"
+            class="materials-stats-pill"
+          >
+            <span v-if="pdfCount">
+              {{ pdfCount }} PDF{{ pdfCount === 1 ? "" : "s" }}
+            </span>
+            <span v-if="slideCount">
+              <span v-if="pdfCount"> • </span>{{ slideCount }} slide{{ slideCount === 1 ? "" : "s" }}
+            </span>
           </span>
-          <span v-if="slideCount">
-            <span v-if="pdfCount"> • </span>{{ slideCount }} slide{{ slideCount === 1 ? "" : "s" }}
-          </span>
-        </span>
+        </div>
 
         <!-- Upload button for admin / lecturer / course_rep -->
         <button
           v-if="canUpload"
           type="button"
-          class="pill-btn pill-btn--solid"
+          class="pill-btn pill-btn--solid materials-upload-btn"
           @click="openUpload"
         >
           + Upload
@@ -42,23 +44,42 @@
 
     <!-- Inline upload panel -->
     <div v-if="showUpload" class="upload-panel">
-      <div class="upload-row">
-        <label class="upload-label">Title (optional)</label>
-        <input
-          v-model="uploadTitle"
-          type="text"
-          class="upload-input"
-          placeholder="e.g. Week 3 – Amino Acids summary"
-        />
+      <div class="upload-panel-header">
+        <div class="upload-icon">⬆️</div>
+        <div>
+          <p class="upload-title">Upload a new material</p>
+          <p class="upload-sub">
+            PDFs, slides, docs or images. Keep file names clear and descriptive.
+          </p>
+        </div>
       </div>
 
-      <div class="upload-row">
-        <label class="upload-label">File</label>
-        <input
-          type="file"
-          @change="onFileChange"
-          class="upload-input upload-input--file"
-        />
+      <div class="upload-grid">
+        <div class="upload-row">
+          <label class="upload-label">Title (optional)</label>
+          <input
+            v-model="uploadTitle"
+            type="text"
+            class="upload-input"
+            placeholder="e.g. Week 3 – Amino Acids summary"
+          />
+        </div>
+
+        <div class="upload-row">
+          <label class="upload-label">File</label>
+          <input
+            type="file"
+            @change="onFileChange"
+            class="upload-input upload-input--file"
+            accept=".pdf,.ppt,.pptx,.doc,.docx,.jpg,.jpeg,.png"
+          />
+          <p v-if="uploadFile" class="upload-file-name">
+            Selected: <span>{{ uploadFile.name }}</span>
+          </p>
+          <p class="upload-hint">
+            Max size depends on your network. If upload fails, try a smaller file.
+          </p>
+        </div>
       </div>
 
       <div class="upload-actions">
@@ -72,11 +93,11 @@
         </button>
         <button
           type="button"
-          class="primary-btn"
+          class="primary-btn upload-primary-btn"
           @click="handleUpload"
           :disabled="uploading"
         >
-          {{ uploading ? "Uploading..." : "Upload" }}
+          {{ uploading ? "Uploading..." : "Upload material" }}
         </button>
       </div>
 
@@ -93,16 +114,18 @@
     </div>
 
     <div v-else-if="!materials.length" class="empty-text materials-empty">
-      <div class="materials-empty-icon">📂</div>
+      <div class="materials-empty-icon-wrapper">
+        <div class="materials-empty-icon">📂</div>
+      </div>
       <div class="materials-empty-text">
         <p class="materials-empty-title">
           No materials have been uploaded yet.
         </p>
         <p class="materials-empty-body">
-          When your course rep or lecturer uploads notes, past questions or
-          slides, they'll appear here.
+          Once your course rep or lecturer uploads notes, past questions or
+          slides, they'll appear here automatically.
         </p>
-        <span v-if="!canUpload" class="hint">
+        <span v-if="!canUpload" class="hint materials-empty-hint">
           Only admins, course reps and lecturers can upload materials.
         </span>
         <button
@@ -126,22 +149,24 @@
         <div class="materials-info">
           <div class="materials-title">
             <span class="file-pill">{{ fileIcon(m.file_url) }}</span>
-            <span class="materials-title-text" :title="m.title">
-              {{ m.title }}
-            </span>
-          </div>
-          <div class="materials-meta">
-            <span v-if="props.course?.code" class="materials-meta-chip">
-              {{ props.course.code }}
-            </span>
-            <span class="dot">
-              {{ formatDate(m.created_at) }}
-            </span>
-            <span class="dot">
-              <span class="materials-type-chip">
-                {{ fileTypeLabel(m.file_url) }}
+            <div class="materials-title-block">
+              <span class="materials-title-text" :title="m.title">
+                {{ m.title }}
               </span>
-            </span>
+              <div class="materials-meta">
+                <span v-if="props.course?.code" class="materials-meta-chip">
+                  {{ props.course.code }}
+                </span>
+                <span class="dot">
+                  {{ formatDate(m.created_at) }}
+                </span>
+                <span class="dot">
+                  <span class="materials-type-chip">
+                    {{ fileTypeLabel(m.file_url) }}
+                  </span>
+                </span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -374,13 +399,26 @@ watch(
 <style scoped>
 .materials-card {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 /* header tweaks */
+.materials-header {
+  align-items: flex-start;
+}
+
 .card-header-main {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
+}
+
+.materials-title-main {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #0f172a;
 }
 
 .card-sub-secondary {
@@ -394,6 +432,23 @@ watch(
   color: #4b5563;
 }
 
+.materials-header-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.4rem;
+}
+
+.materials-header-stats {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.materials-count-badge {
+  font-weight: 500;
+}
+
 .materials-stats-pill {
   font-size: 0.7rem;
   padding: 0.18rem 0.6rem;
@@ -403,13 +458,115 @@ watch(
   color: #6b7280;
 }
 
+.materials-upload-btn {
+  font-size: 0.8rem;
+  padding-inline: 0.8rem;
+}
+
 /* upload */
+.upload-panel {
+  margin-top: 0.35rem;
+  padding: 0.9rem 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid #e5e7eb;
+  background: radial-gradient(circle at top left, #eff6ff 0, #f9fafb 45%, #ffffff 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.upload-panel-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+
+.upload-icon {
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #eef2ff;
+  font-size: 1.1rem;
+}
+
+.upload-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.upload-sub {
+  font-size: 0.78rem;
+  color: #6b7280;
+}
+
+.upload-grid {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.upload-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.upload-label {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #4b5563;
+}
+
+.upload-input {
+  border-radius: 0.55rem;
+  border: 1px solid #e5e7eb;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+  background-color: #f9fafb;
+}
+
+.upload-input:focus {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 1px rgba(79, 70, 229, 0.15);
+  background-color: #ffffff;
+}
+
 .upload-input--file {
   cursor: pointer;
+  padding-block: 0.35rem;
+}
+
+.upload-file-name {
+  font-size: 0.78rem;
+  color: #4b5563;
+}
+
+.upload-file-name span {
+  font-weight: 500;
+}
+
+.upload-hint {
+  font-size: 0.7rem;
+  color: #9ca3af;
+}
+
+.upload-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
 }
 
 .materials-cancel-btn {
   min-width: 80px;
+}
+
+.upload-primary-btn {
+  min-width: 130px;
 }
 
 /* skeleton loader */
@@ -459,12 +616,17 @@ watch(
 /* empty state */
 .materials-empty {
   display: flex;
-  gap: 0.75rem;
+  gap: 0.9rem;
   align-items: flex-start;
+  padding: 0.7rem 0.2rem 0.1rem;
+}
+
+.materials-empty-icon-wrapper {
+  padding-top: 0.2rem;
 }
 
 .materials-empty-icon {
-  font-size: 1.4rem;
+  font-size: 1.7rem;
   line-height: 1;
 }
 
@@ -484,16 +646,85 @@ watch(
   color: #6b7280;
 }
 
+.materials-empty-hint {
+  font-size: 0.78rem;
+  color: #9ca3af;
+}
+
 .materials-empty-cta {
   margin-top: 0.35rem;
 }
 
 /* list */
+.materials-list {
+  margin-top: 0.35rem;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid #f3f4f6;
+}
+
+.materials-item {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid #f3f4f6;
+  transition: background-color 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.materials-item:hover {
+  background-color: #f9fafb;
+  transform: translateY(-1px);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+}
+
+.materials-info {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.materials-title {
+  display: flex;
+  gap: 0.65rem;
+  align-items: flex-start;
+}
+
+.file-pill {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.9rem;
+  background: #eef2ff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+}
+
+.materials-title-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
 .materials-title-text {
   max-width: 260px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #111827;
+}
+
+.materials-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  align-items: center;
+  font-size: 0.78rem;
+  color: #6b7280;
 }
 
 .materials-meta-chip {
@@ -512,11 +743,24 @@ watch(
   font-size: 0.7rem;
 }
 
+.dot {
+  position: relative;
+  padding-left: 0.6rem;
+}
+
+.dot::before {
+  content: "•";
+  position: absolute;
+  left: 0.15rem;
+  color: #d1d5db;
+}
+
 /* actions */
 .materials-actions {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  flex-shrink: 0;
 }
 
 .materials-open-btn {
@@ -537,17 +781,38 @@ watch(
 
 /* mobile tweaks */
 @media (max-width: 640px) {
+  .materials-header {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .materials-header-right {
+    align-items: flex-start;
+  }
+
   .materials-title-text {
     max-width: 100%;
+  }
+
+  .materials-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .materials-actions {
+    flex-direction: row;
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
   }
 }
 
 @media (min-width: 640px) {
   .materials-actions {
-    flex-direction: row;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 0.5rem;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 0.35rem;
   }
 }
 </style>
