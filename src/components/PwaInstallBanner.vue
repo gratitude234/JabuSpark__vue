@@ -50,7 +50,7 @@
 </template>
 
 <script setup>
-import { usePwaInstall } from "@/composables/usePwaInstall";
+import { usePwaInstall } from "../composables/usePwaInstall";
 
 const { canInstall, isInstalled, showBanner, promptInstall, hideBanner } =
   usePwaInstall();

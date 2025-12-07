@@ -170,7 +170,7 @@ import { useRoute, RouterLink } from "vue-router";
 import Logo from "../assets/logo.jpg";
 
 // ✅ IMPORT PWA INSTALL BANNER
-import PwaInstallBanner from "@/components/PwaInstallBanner.vue";
+import PwaInstallBanner from "../components/PwaInstallBanner.vue";
 
 const route = useRoute();
 const mobileOpen = ref(false);
