@@ -160,7 +160,7 @@
                 class="mode-pill"
                 :class="{ 'mode-pill--active': drillMode === 'end' }"
                 @click="setDrillMode('end')"
-                :disabled="questions.length && !showResults"
+                :disabled="isDrillLocked"
                 :aria-pressed="drillMode === 'end'"
               >
                 End mode
@@ -170,7 +170,7 @@
                 class="mode-pill"
                 :class="{ 'mode-pill--active': drillMode === 'instant' }"
                 @click="setDrillMode('instant')"
-                :disabled="questions.length && !showResults"
+                :disabled="isDrillLocked"
                 :aria-pressed="drillMode === 'instant'"
               >
                 Instant mode
@@ -182,6 +182,9 @@
                   ? "Answer all questions first, then see your score and explanations."
                   : "See if you’re right immediately and get a short explanation."
               }}
+            </p>
+            <p v-if="isDrillLocked" class="drill-mode-lock-hint">
+              Settings are locked while this drill is in progress.
             </p>
           </div>
 
@@ -200,7 +203,7 @@
                 class="size-pill"
                 :class="{ 'size-pill--active': drillSize === size }"
                 @click="setDrillSize(size)"
-                :disabled="drillLoading"
+                :disabled="drillLoading || isDrillLocked"
                 :aria-pressed="drillSize === size"
               >
                 <span v-if="size === 'all'">All</span>
@@ -210,6 +213,16 @@
             <p class="drill-size-hint">
               5 = quick • 10 = standard • 20 = deep • All = full bank
             </p>
+
+            <!-- Inline end-drill shortcut for better UX -->
+            <button
+              v-if="isDrillLocked"
+              type="button"
+              class="quick-settings-end-link"
+              @click="endDrillFromSettings"
+            >
+              End this drill to change settings
+            </button>
           </div>
         </div>
       </div>
@@ -314,6 +327,7 @@
               class="option-pill"
               :class="optionClass(q, opt)"
               @click="selectAnswer(q.id, opt)"
+              :disabled="isOptionDisabled(q)"
             >
               <span class="opt-label">{{ opt }}.</span>
               <span class="opt-text">
@@ -332,7 +346,13 @@
 
           <!-- Little interaction tip on the first question only -->
           <p v-if="index === 0" class="option-hint">
-            Tip: tap an option to select it, tap again to clear your answer.
+            <span v-if="isInstantMode">
+              In Instant mode, your first answer is locked for each question —
+              think before you tap.
+            </span>
+            <span v-else>
+              Tip: tap an option to select it, tap again to clear your answer.
+            </span>
           </p>
 
           <!-- Button to ask Jabuspark about this specific question -->
@@ -387,8 +407,8 @@
                 >
                   {{
                     isQuestionCorrect(q)
-                      ? 'You were correct'
-                      : 'You were incorrect'
+                      ? "You were correct"
+                      : "You were incorrect"
                   }}
                 </span>
               </div>
@@ -490,7 +510,6 @@
     </div>
   </section>
 </template>
-
 
 <script setup>
 import {
@@ -695,6 +714,11 @@ const currentQuestionIndex = computed(() => {
   return idx === -1 ? questions.value.length - 1 : idx;
 });
 
+// 🔒 Is drill in progress (used to lock settings)
+const isDrillLocked = computed(
+  () => questions.value.length && !showResults.value
+);
+
 // 🔃 Emit progress to parent (dashboard / course view)
 function emitProgress(state = "active") {
   if (!questions.value.length) {
@@ -745,10 +769,12 @@ function formatDate(dateStr) {
 }
 
 function setDrillSize(size) {
+  if (isDrillLocked.value) return;
   drillSize.value = size;
 }
 
 function setDrillMode(mode) {
+  if (isDrillLocked.value) return;
   if (mode !== "end" && mode !== "instant") return;
   drillMode.value = mode;
   try {
@@ -994,22 +1020,36 @@ async function selectAnswer(questionId, optionKey) {
   // After submit, lock everything
   if (showResults.value) return;
 
-  const current = userAnswers.value[questionId];
-  // If they tap the same option again, clear the answer (nice UX)
-  const newValue = current === optionKey ? null : optionKey;
+  // INSTANT MODE: once answered, don't allow changes
+  if (isInstantMode.value && userAnswers.value[questionId]) {
+    return;
+  }
 
-  userAnswers.value = {
-    ...userAnswers.value,
-    [questionId]: newValue,
-  };
+  if (!isInstantMode.value) {
+    // END MODE: can change or clear before submit
+    const current = userAnswers.value[questionId];
+    const newValue = current === optionKey ? null : optionKey;
 
-  emitProgress("active");
+    userAnswers.value = {
+      ...userAnswers.value,
+      [questionId]: newValue,
+    };
 
-  // Persist this step
-  saveActiveDrillSnapshot();
+    emitProgress("active");
+    saveActiveDrillSnapshot();
 
-  // If they cleared their answer, don't fetch explanation
-  if (!newValue) return;
+    // If they cleared their answer, don't fetch explanation
+    if (!newValue) return;
+  } else {
+    // INSTANT MODE: one-shot selection
+    userAnswers.value = {
+      ...userAnswers.value,
+      [questionId]: optionKey,
+    };
+
+    emitProgress("active");
+    saveActiveDrillSnapshot();
+  }
 
   // INSTANT MODE: fetch explanation immediately for this question
   if (isInstantMode.value) {
@@ -1205,6 +1245,25 @@ function endDrill() {
   );
 }
 
+// Inline end-drill shortcut from settings area
+function endDrillFromSettings() {
+  if (!questions.value.length) return;
+
+  let confirmed = true;
+  if (typeof window !== "undefined") {
+    confirmed = window.confirm(
+      "Ending this drill will clear your current answers so you can change your settings. Continue?"
+    );
+  }
+  if (!confirmed) return;
+
+  resetDrill();
+  showToast(
+    "Drill ended. Adjust your settings and start a new drill when you're ready.",
+    "info"
+  );
+}
+
 // answer button state
 function optionClass(q, opt) {
   const selected = userAnswers.value[q.id];
@@ -1240,6 +1299,12 @@ function optionClass(q, opt) {
     incorrect: !isCorrect && isSelected,
     selected: isSelected,
   };
+}
+
+// Disable options once answered in INSTANT mode
+function isOptionDisabled(q) {
+  if (!isInstantMode.value) return false;
+  return !!userAnswers.value[q.id];
 }
 
 // DOM refs
@@ -1664,6 +1729,12 @@ defineExpose({
   color: #9ca3af;
 }
 
+.drill-mode-lock-hint {
+  margin-top: 0.1rem;
+  font-size: 0.68rem;
+  color: #9ca3af;
+}
+
 /* SIZE SWITCH */
 .drill-size-switch {
   display: flex;
@@ -1726,6 +1797,24 @@ defineExpose({
   margin-top: 0.15rem;
   font-size: 0.7rem;
   color: #9ca3af;
+}
+
+/* Settings inline end-drill link */
+.quick-settings-end-link {
+  margin-top: 0.25rem;
+  align-self: flex-end;
+  border: none;
+  background: transparent;
+  font-size: 0.7rem;
+  color: #ef4444;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  padding: 0;
+}
+
+.quick-settings-end-link:hover {
+  color: #b91c1c;
 }
 
 /* ALERT */
@@ -1931,7 +2020,7 @@ defineExpose({
     transform 0.1s ease;
 }
 
-.option-pill:hover {
+.option-pill:hover:not(:disabled) {
   border-color: #4f46e5;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
   transform: translateY(-1px);
@@ -1940,6 +2029,13 @@ defineExpose({
 .option-pill:focus-visible {
   outline: 2px solid #4f46e5;
   outline-offset: 2px;
+}
+
+.option-pill:disabled {
+  cursor: default;
+  opacity: 0.9;
+  transform: none;
+  box-shadow: none;
 }
 
 .option-pill .opt-label {
