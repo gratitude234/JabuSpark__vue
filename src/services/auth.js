@@ -1,6 +1,34 @@
 // src/services/auth.js
 import api from "./api";
 
+const TOKEN_KEY = "jabuspark_token";
+const USER_KEY = "jabuspark_user";
+
+/**
+ * Get the saved auth token from localStorage
+ * Used by other services (theory, drills, etc.) to send Authorization header.
+ */
+export function getAuthToken() {
+  if (typeof localStorage === "undefined") return "";
+  return localStorage.getItem(TOKEN_KEY) || "";
+}
+
+/**
+ * (Optional) Get the current user object from localStorage
+ * Useful anywhere you need quick access to the logged-in user.
+ */
+export function getCurrentUser() {
+  if (typeof localStorage === "undefined") return null;
+
+  try {
+    const raw = localStorage.getItem(USER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    console.warn("Failed to parse stored user", e);
+    return null;
+  }
+}
+
 /**
  * Login a user with email + password
  * Saves token + user to localStorage and notifies the app shell.
@@ -10,8 +38,10 @@ export async function login(email, password) {
   const { token, user } = res.data;
 
   // Save token + user for later
-  localStorage.setItem("jabuspark_token", token);
-  localStorage.setItem("jabuspark_user", JSON.stringify(user));
+  if (typeof localStorage !== "undefined") {
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+  }
 
   // Let App.vue know the user changed
   window.dispatchEvent(new CustomEvent("jabuspark:user-updated"));
@@ -23,8 +53,10 @@ export async function login(email, password) {
  * Logout: clear token + user and notify shell
  */
 export function logout() {
-  localStorage.removeItem("jabuspark_token");
-  localStorage.removeItem("jabuspark_user");
+  if (typeof localStorage !== "undefined") {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+  }
 
   window.dispatchEvent(new CustomEvent("jabuspark:user-updated"));
 }
@@ -48,9 +80,9 @@ export async function registerStudent(payload) {
   const res = await api.post("/auth/register.php", payload);
 
   // Optional: if API returns token + user, auto-login after registration
-  if (res.data?.token && res.data?.user) {
-    localStorage.setItem("jabuspark_token", res.data.token);
-    localStorage.setItem("jabuspark_user", JSON.stringify(res.data.user));
+  if (res.data?.token && res.data?.user && typeof localStorage !== "undefined") {
+    localStorage.setItem(TOKEN_KEY, res.data.token);
+    localStorage.setItem(USER_KEY, JSON.stringify(res.data.user));
     window.dispatchEvent(new CustomEvent("jabuspark:user-updated"));
   }
 

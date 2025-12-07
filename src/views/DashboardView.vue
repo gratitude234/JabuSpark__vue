@@ -659,6 +659,44 @@
               </ul>
             </div>
           </section>
+
+          <!-- Support / feedback -->
+          <section
+            class="rounded-2xl bg-indigo-50 p-4 shadow-sm ring-1 ring-indigo-100/70 transition-all duration-500 ease-out transform"
+            :class="loaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3 delay-200'"
+            aria-labelledby="support-heading"
+          >
+            <header class="flex items-center justify-between gap-2">
+              <div>
+                <h2
+                  id="support-heading"
+                  class="text-sm font-semibold text-slate-900"
+                >
+                  Have a complaint, question, or suggestion?
+                </h2>
+                <p class="mt-1 text-[11px] text-slate-600">
+                  If something isn&apos;t working or you have an idea to improve Jabuspark,
+                  you can message me directly on WhatsApp.
+                </p>
+              </div>
+            </header>
+
+            <div class="mt-3 flex flex-wrap items-center gap-2 text-xs">
+              <a
+                href="https://wa.me/2347041022336?text=Hi%20Gratitude%20%2C%20I%20have%20a%20question%20"
+                target="_blank"
+                rel="noopener"
+                class="inline-flex items-center justify-center gap-2 rounded-full bg-green-600 px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-green-700 hover:-translate-y-0.5"
+              >
+                <span>💬</span>
+                <span>DM me on WhatsApp</span>
+              </a>
+<!-- 
+              <span class="text-[11px] text-slate-500">
+                07041022336
+              </span> -->
+            </div>
+          </section>
         </div>
       </div>
     </section>

@@ -1,12 +1,17 @@
-<!-- src/components/QuickDrill.vue -->
 <template>
   <section class="card quick-drill-card">
     <div class="card-header quick-header">
       <!-- LEFT: Title / tags / last drill -->
       <div class="quick-header-left">
-        <h2 class="quick-title">
-          Quick drill
-        </h2>
+        <div class="quick-title-row">
+          <h2 class="quick-title">
+            <span class="quick-title-icon">⚡</span>
+            <span>Quick drill</span>
+          </h2>
+          <span class="quick-title-pill" v-if="questions.length">
+            {{ answeredCount }} / {{ totalQuestions }} answered
+          </span>
+        </div>
 
         <!-- 🔁 Updated subtitle: reacts to materialId + drillSize -->
         <p class="card-sub quick-sub">
@@ -28,12 +33,14 @@
               All available MCQs to test your understanding of this course.
             </span>
             <span v-else>
-              {{ drillSize }} fast MCQs to test your understanding of this course.
+              {{ drillSize }} fast MCQs to test your understanding of this
+              course.
             </span>
           </template>
         </p>
 
         <div class="quick-tags">
+          <span class="quick-tag">📝 Exam-style MCQs</span>
           <span class="quick-tag">⚡ Auto-marked</span>
           <span class="quick-tag quick-tag--secondary">
             {{
@@ -65,10 +72,7 @@
           <span class="quick-mini-meta" v-if="drillLoading">
             ⏳ Loading questions…
           </span>
-          <span
-            class="quick-mini-meta"
-            v-else-if="!questions.length"
-          >
+          <span class="quick-mini-meta" v-else-if="!questions.length">
             ✅ Ready when you are
           </span>
           <span
@@ -77,106 +81,136 @@
           >
             ▶️ In progress
           </span>
-          <span
-            class="quick-mini-meta"
-            v-else-if="showResults"
-          >
+          <span class="quick-mini-meta" v-else-if="showResults">
             🎉 Completed
           </span>
         </div>
 
-        <!-- Quick metrics -->
-        <div v-if="questions.length" class="quick-header-metrics">
-          <div class="metric-chip">
-            <span class="metric-label">Answered</span>
-            <span class="metric-value">
-              {{ answeredCount }} / {{ totalQuestions }}
+        <!-- CONTROL PANEL -->
+        <div class="quick-control-panel">
+          <!-- Quick metrics -->
+          <div
+            v-if="questions.length"
+            class="quick-header-metrics quick-control-row"
+          >
+            <div class="metric-chip">
+              <span class="metric-label">Answered</span>
+              <span class="metric-value">
+                {{ answeredCount }} / {{ totalQuestions }}
+              </span>
+            </div>
+            <div class="metric-chip">
+              <span class="metric-label">Time</span>
+              <span class="metric-value">
+                {{ formattedTimer }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Progress bar -->
+          <div
+            v-if="questions.length"
+            class="quick-progress quick-control-row"
+          >
+            <div class="quick-progress-track">
+              <div
+                class="quick-progress-fill"
+                :style="{ width: progressPercent + '%' }"
+              ></div>
+            </div>
+            <span class="quick-progress-label">
+              {{ progressPercent }}% complete
             </span>
           </div>
-          <div class="metric-chip">
-            <span class="metric-label">Time</span>
-            <span class="metric-value">
-              {{ formattedTimer }}
+
+          <!-- History hint -->
+          <div
+            v-if="hasAnsweredHistory"
+            class="quick-history-hint quick-control-row"
+          >
+            <span class="quick-history-dot"></span>
+            <span class="quick-history-text">
+              We’ll avoid {{ answeredCountForCurrent }} questions you’ve already
+              answered.
             </span>
-          </div>
-        </div>
-
-        <!-- Progress bar -->
-        <div v-if="questions.length" class="quick-progress">
-          <div class="quick-progress-track">
-            <div
-              class="quick-progress-fill"
-              :style="{ width: progressPercent + '%' }"
-            ></div>
-          </div>
-          <span class="quick-progress-label">
-            {{ progressPercent }}% complete
-          </span>
-        </div>
-
-        <!-- Feedback mode switch -->
-        <div
-          class="drill-mode-switch"
-          role="group"
-          aria-label="Choose feedback mode"
-        >
-          <span class="drill-mode-label">Feedback mode</span>
-          <div class="drill-mode-pills">
             <button
               type="button"
-              class="mode-pill"
-              :class="{ 'mode-pill--active': drillMode === 'end' }"
-              @click="setDrillMode('end')"
-              :disabled="questions.length && !showResults"
-              :aria-pressed="drillMode === 'end'"
+              class="quick-history-reset-btn"
+              @click="resetAnsweredHistoryForCurrent"
             >
-              End mode
-            </button>
-            <button
-              type="button"
-              class="mode-pill"
-              :class="{ 'mode-pill--active': drillMode === 'instant' }"
-              @click="setDrillMode('instant')"
-              :disabled="questions.length && !showResults"
-              :aria-pressed="drillMode === 'instant'"
-            >
-              Instant mode
+              Reset history
             </button>
           </div>
-          <p class="drill-mode-hint">
-            {{
-              drillMode === "end"
-                ? "Mark everything at the end, then reveal explanations."
-                : "Mark each question immediately and see its explanation."
-            }}
-          </p>
-        </div>
 
-        <!-- Drill length -->
-        <div
-          class="drill-size-switch"
-          role="group"
-          aria-label="Choose number of questions"
-        >
-          <span class="drill-size-label">Drill length</span>
-          <div class="drill-size-pills">
-            <button
-              v-for="size in drillSizeOptions"
-              :key="size"
-              type="button"
-              class="size-pill"
-              :class="{ 'size-pill--active': drillSize === size }"
-              @click="setDrillSize(size)"
-              :disabled="drillLoading"
-              :aria-pressed="drillSize === size"
-            >
-              <span v-if="size === 'all'">All</span>
-              <span v-else>{{ size }} Q</span>
-            </button>
+          <!-- Feedback mode switch -->
+          <div
+            class="drill-mode-switch quick-control-row"
+            role="group"
+            aria-label="Choose feedback mode"
+          >
+            <div class="quick-control-row-head">
+              <span class="drill-mode-label">Feedback mode</span>
+              <span class="drill-mode-badge">
+                {{ drillMode === "end" ? "Exam-style" : "Tutor-style" }}
+              </span>
+            </div>
+            <div class="drill-mode-pills">
+              <button
+                type="button"
+                class="mode-pill"
+                :class="{ 'mode-pill--active': drillMode === 'end' }"
+                @click="setDrillMode('end')"
+                :disabled="questions.length && !showResults"
+                :aria-pressed="drillMode === 'end'"
+              >
+                End mode
+              </button>
+              <button
+                type="button"
+                class="mode-pill"
+                :class="{ 'mode-pill--active': drillMode === 'instant' }"
+                @click="setDrillMode('instant')"
+                :disabled="questions.length && !showResults"
+                :aria-pressed="drillMode === 'instant'"
+              >
+                Instant mode
+              </button>
+            </div>
+            <p class="drill-mode-hint">
+              {{
+                drillMode === "end"
+                  ? "Answer all questions first, then see your score and explanations."
+                  : "See if you’re right immediately and get a short explanation."
+              }}
+            </p>
           </div>
-          <p class="drill-size-hint">
-            5 = quick • 10 = standard • 20 = deep • All = full bank
-          </p>
+
+          <!-- Drill length -->
+          <div
+            class="drill-size-switch quick-control-row"
+            role="group"
+            aria-label="Choose number of questions"
+          >
+            <span class="drill-size-label">Drill length</span>
+            <div class="drill-size-pills">
+              <button
+                v-for="size in drillSizeOptions"
+                :key="size"
+                type="button"
+                class="size-pill"
+                :class="{ 'size-pill--active': drillSize === size }"
+                @click="setDrillSize(size)"
+                :disabled="drillLoading"
+                :aria-pressed="drillSize === size"
+              >
+                <span v-if="size === 'all'">All</span>
+                <span v-else>{{ size }} Q</span>
+              </button>
+            </div>
+            <p class="drill-size-hint">
+              5 = quick • 10 = standard • 20 = deep • All = full bank
+            </p>
+          </div>
         </div>
       </div>
     </div>
@@ -206,12 +240,17 @@
             your materials.
           </span>
         </p>
+        <p class="quick-empty-tip">
+          Choose your <strong>feedback mode</strong> and
+          <strong>drill length</strong> on the right, then start.
+        </p>
         <div class="drill-actions-inline">
           <button
             class="btn btn-primary"
             @click="startQuickDrill"
             :disabled="drillLoading"
           >
+            <span class="btn-icon">▶</span>
             <span v-if="drillSize === 'all'">
               Start full-question drill
             </span>
@@ -230,10 +269,7 @@
     </div>
 
     <!-- Questions + footer -->
-    <div
-      v-if="questions.length && !drillLoading"
-      class="drill-body"
-    >
+    <div v-if="questions.length && !drillLoading" class="drill-body">
       <!-- 🔄 Explanations loading indicator (after submit, END MODE bulk) -->
       <div
         v-if="showResults && explanationsLoading"
@@ -248,7 +284,7 @@
           v-for="(q, index) in questions"
           :key="q.id"
           class="question-item"
-          :ref="el => setQuestionRef(el, index)"
+          :ref="(el) => setQuestionRef(el, index)"
         >
           <div class="question-header-row">
             <div class="question-text">
@@ -266,7 +302,7 @@
               class="question-jump"
               @click="scrollToQuestion(index)"
             >
-              Jump
+              Jump to this question
             </button>
           </div>
 
@@ -294,6 +330,11 @@
             </button>
           </div>
 
+          <!-- Little interaction tip on the first question only -->
+          <p v-if="index === 0" class="option-hint">
+            Tip: tap an option to select it, tap again to clear your answer.
+          </p>
+
           <!-- Button to ask Jabuspark about this specific question -->
           <div class="question-ai-row">
             <button
@@ -306,10 +347,7 @@
           </div>
 
           <!-- 🧠 Explanation block -->
-          <div
-            v-if="shouldShowExplanation(q)"
-            class="explanation-wrapper"
-          >
+          <div v-if="shouldShowExplanation(q)" class="explanation-wrapper">
             <!-- Per-question loading in INSTANT mode -->
             <div
               v-if="
@@ -349,8 +387,8 @@
                 >
                   {{
                     isQuestionCorrect(q)
-                      ? "You were correct"
-                      : "You were incorrect"
+                      ? 'You were correct'
+                      : 'You were incorrect'
                   }}
                 </span>
               </div>
@@ -382,10 +420,7 @@
             </div>
 
             <!-- Locked explanation for unanswered questions after submit -->
-            <div
-              v-else-if="showResults"
-              class="explanation-locked"
-            >
+            <div v-else-if="showResults" class="explanation-locked">
               <span class="locked-icon">🔒</span>
               <span class="locked-text">
                 Explanation locked — this question wasn’t answered.
@@ -403,6 +438,17 @@
           </span>
         </div>
 
+        <!-- 🔥 Post-drill encouragement -->
+        <div v-if="showResults" class="post-drill-copy">
+          <p class="post-drill-main">
+            {{ postDrillMessage }}
+          </p>
+          <p class="post-drill-sub">
+            Tip: scores improve fastest when you do 2–3 short drills
+            back-to-back.
+          </p>
+        </div>
+
         <div class="actions">
           <button
             v-if="!showResults"
@@ -413,12 +459,17 @@
             Submit &amp; see score
           </button>
 
+          <!-- Encouraging CTA -->
           <button
             v-if="showResults"
-            class="btn btn-outline"
+            class="btn btn-primary"
             @click="startQuickDrill"
           >
-            New drill
+            {{
+              drillSize === "all"
+                ? "Do another full drill"
+                : `Do ${drillSize} more questions now`
+            }}
           </button>
 
           <!-- 🔴 Explicit end button for active drills -->
@@ -431,11 +482,7 @@
           </button>
 
           <!-- Fallback clear (e.g. after results or no drill at all) -->
-          <button
-            v-else
-            class="btn btn-ghost"
-            @click="resetDrill"
-          >
+          <button v-else class="btn btn-ghost" @click="resetDrill">
             Clear
           </button>
         </div>
@@ -443,6 +490,7 @@
     </div>
   </section>
 </template>
+
 
 <script setup>
 import {
@@ -485,6 +533,84 @@ const drillSize = ref(10); // 5 | 10 | 20 | "all"
 // FEEDBACK MODE: "end" | "instant"
 const DRILL_MODE_KEY = "jabuspark_quickdrill_mode";
 const ACTIVE_DRILL_KEY = "jabuspark_active_drills";
+
+// answered history (per course/material) so we don't repeat questions
+const ANSWERED_QUESTIONS_KEY = "jabuspark_quickdrill_answered";
+const answeredHistory = ref({}); // { "course:1" : [1,2,3], "course:1:material:5": [10,11] }
+
+function answeredHistoryKey() {
+  return props.materialId
+    ? `course:${props.courseId}:material:${props.materialId}`
+    : `course:${props.courseId}`;
+}
+
+function loadAnsweredHistory() {
+  try {
+    const raw = localStorage.getItem(ANSWERED_QUESTIONS_KEY);
+    answeredHistory.value = raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    console.error("Failed to load answered history", e);
+    answeredHistory.value = {};
+  }
+}
+
+function saveAnsweredHistory() {
+  try {
+    localStorage.setItem(
+      ANSWERED_QUESTIONS_KEY,
+      JSON.stringify(answeredHistory.value)
+    );
+  } catch (e) {
+    console.error("Failed to save answered history", e);
+  }
+}
+
+function getAnsweredIdsForCurrent() {
+  const key = answeredHistoryKey();
+  return answeredHistory.value[key] || [];
+}
+
+function addAnsweredIdsForCurrent(ids) {
+  if (!ids || !ids.length) return;
+  const key = answeredHistoryKey();
+  const existing = new Set(getAnsweredIdsForCurrent());
+  ids.forEach((id) => existing.add(id));
+
+  answeredHistory.value = {
+    ...answeredHistory.value,
+    [key]: Array.from(existing),
+  };
+  saveAnsweredHistory();
+}
+
+function resetAnsweredHistoryForCurrent() {
+  const key = answeredHistoryKey();
+  if (!answeredHistory.value[key]) return;
+
+  let confirmed = true;
+  if (typeof window !== "undefined") {
+    confirmed = window.confirm(
+      "Reset your question history for this drill? Already-seen questions may start appearing again."
+    );
+  }
+  if (!confirmed) return;
+
+  const copy = { ...answeredHistory.value };
+  delete copy[key];
+  answeredHistory.value = copy;
+  saveAnsweredHistory();
+  showToast(
+    "Question history cleared. Future drills can reuse all questions.",
+    "info"
+  );
+}
+
+const answeredCountForCurrent = computed(() => {
+  const key = answeredHistoryKey();
+  return answeredHistory.value[key]?.length || 0;
+});
+
+const hasAnsweredHistory = computed(() => answeredCountForCurrent.value > 0);
 
 const drillMode = ref("end");
 const isInstantMode = computed(() => drillMode.value === "instant");
@@ -542,6 +668,24 @@ const score = computed(() => {
     if (ans && ans === q.correct_option) correct++;
   }
   return correct;
+});
+
+// score % + personalised message
+const scorePercent = computed(() => {
+  if (!totalQuestions.value) return 0;
+  return Math.round((score.value / totalQuestions.value) * 100);
+});
+
+const postDrillMessage = computed(() => {
+  const p = scorePercent.value;
+
+  if (p >= 80) {
+    return "Great work — you’re almost exam-ready. One more quick round will lock this in.";
+  }
+  if (p >= 50) {
+    return "Nice effort — another short drill now will help fix the weak spots.";
+  }
+  return "Don’t worry if this felt hard — doing another quick drill while it’s fresh will help a lot.";
 });
 
 // First unanswered question index (for external progress)
@@ -803,26 +947,30 @@ async function startQuickDrill() {
     timerSeconds.value = 0;
 
     const sizeParam = drillSize.value === "all" ? null : drillSize.value;
+    const excludeIds = getAnsweredIdsForCurrent();
 
-    // 🔁 Pass materialId so backend filters by that material when present
     const data = await getQuickDrill(
       props.courseId,
       sizeParam,
-      props.materialId || null
+      props.materialId || null,
+      excludeIds
     );
+
     if (!Array.isArray(data) || data.length === 0) {
       drillError.value = props.materialId
-        ? "No questions available for this material yet."
-        : "No questions available for this course yet.";
+        ? "No new questions available for this material. You’ve answered everything for now."
+        : "No new questions available for this course. You’ve answered everything for now.";
       emitProgress("idle");
       return;
     }
+
+    // backend already handles LIMIT / random ordering
     questions.value = data;
 
     startTimer();
     emitProgress("active");
 
-    // Save this fresh drill as the current active snapshot
+    // Save this drill as the current active snapshot
     saveActiveDrillSnapshot();
 
     if (typeof window !== "undefined") {
@@ -843,11 +991,16 @@ async function startQuickDrill() {
 }
 
 async function selectAnswer(questionId, optionKey) {
+  // After submit, lock everything
   if (showResults.value) return;
+
+  const current = userAnswers.value[questionId];
+  // If they tap the same option again, clear the answer (nice UX)
+  const newValue = current === optionKey ? null : optionKey;
 
   userAnswers.value = {
     ...userAnswers.value,
-    [questionId]: optionKey,
+    [questionId]: newValue,
   };
 
   emitProgress("active");
@@ -855,11 +1008,15 @@ async function selectAnswer(questionId, optionKey) {
   // Persist this step
   saveActiveDrillSnapshot();
 
+  // If they cleared their answer, don't fetch explanation
+  if (!newValue) return;
+
   // INSTANT MODE: fetch explanation immediately for this question
   if (isInstantMode.value) {
     const q = questions.value.find((item) => item.id === questionId);
     if (!q) return;
 
+    // Avoid refetching explanation on each change – reuse once loaded
     if (q.explanation && q.explanation.trim()) return;
     if (perQuestionExplanationLoading.value[questionId]) return;
 
@@ -917,7 +1074,7 @@ function loadLastDrill() {
     const found = arr.find((r) => r.courseId === props.courseId);
     if (found) lastDrill.value = found;
   } catch (e) {
-    console.error("Failed to load drill history", e);
+    console.error("Failed to load last drill", e);
   }
 }
 
@@ -950,6 +1107,12 @@ async function submitDrill() {
     drillSize.value === "all" ? totalQuestions.value : drillSize.value;
 
   emitProgress("completed");
+
+  // store all answered question IDs in history for this course/material
+  const answeredIdsThisDrill = questions.value
+    .filter((q) => userAnswers.value[q.id])
+    .map((q) => q.id);
+  addAnsweredIdsForCurrent(answeredIdsThisDrill);
 
   try {
     await completeDrill({
@@ -1042,7 +1205,7 @@ function endDrill() {
   );
 }
 
-// ✅ FIXED: no pre-highlighting in INSTANT MODE before user selects
+// answer button state
 function optionClass(q, opt) {
   const selected = userAnswers.value[q.id];
 
@@ -1117,6 +1280,7 @@ function shouldShowExplanation(q) {
 onMounted(() => {
   loadDrillModePreference();
   loadLastDrill();
+  loadAnsweredHistory();
 
   const restored = loadActiveDrillSnapshot();
 
@@ -1169,6 +1333,7 @@ defineExpose({
   overflow: hidden;
 }
 
+/* Soft glow in the corner */
 .quick-drill-card::before {
   content: "";
   position: absolute;
@@ -1176,7 +1341,11 @@ defineExpose({
   right: -80px;
   width: 220px;
   height: 220px;
-  background: radial-gradient(circle at top, rgba(79, 70, 229, 0.08), transparent 70%);
+  background: radial-gradient(
+    circle at top,
+    rgba(79, 70, 229, 0.08),
+    transparent 70%
+  );
   pointer-events: none;
 }
 
@@ -1185,19 +1354,50 @@ defineExpose({
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 1.5rem;
+  gap: 1.75rem;
 }
 
 .quick-header-left {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.35rem;
+}
+
+/* Title row */
+.quick-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .quick-title {
-  font-size: 1.05rem;
-  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 1.15rem;
+  font-weight: 650;
   color: #111827;
+  letter-spacing: -0.02em;
+}
+
+.quick-title-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 999px;
+  background: radial-gradient(circle at 30% 20%, #eef2ff, #e0f2fe);
+  font-size: 0.95rem;
+}
+
+.quick-title-pill {
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: #f3f4ff;
+  border: 1px solid #e0e7ff;
+  font-size: 0.7rem;
+  color: #4338ca;
 }
 
 .quick-sub {
@@ -1226,12 +1426,13 @@ defineExpose({
   color: #0891b2;
 }
 
+/* Last drill chip */
 .last-drill-chip {
-  margin-top: 0.35rem;
+  margin-top: 0.45rem;
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.2rem 0.6rem;
+  padding: 0.25rem 0.7rem;
   border-radius: 999px;
   background: #f9fafb;
   border: 1px solid #e5e7eb;
@@ -1259,7 +1460,8 @@ defineExpose({
   flex-direction: column;
   align-items: flex-end;
   gap: 0.5rem;
-  min-width: 220px;
+  min-width: 240px;
+  max-width: 280px;
 }
 
 .quick-header-right-top {
@@ -1277,6 +1479,22 @@ defineExpose({
   color: #6b7280;
 }
 
+/* CONTROL PANEL */
+.quick-control-panel {
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  border-radius: 0.9rem;
+  border: 1px solid #e5e7eb;
+  background: linear-gradient(135deg, #f9fafb, #eff6ff);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.quick-control-row {
+  border-radius: 0.6rem;
+}
+
 /* METRICS */
 .quick-header-metrics {
   display: flex;
@@ -1290,7 +1508,7 @@ defineExpose({
   flex-direction: column;
   align-items: flex-end;
   gap: 0.05rem;
-  padding: 0.25rem 0.55rem;
+  padding: 0.25rem 0.6rem;
   border-radius: 0.75rem;
   background: #f3f4ff;
 }
@@ -1317,7 +1535,8 @@ defineExpose({
 }
 
 .quick-progress-track {
-  width: 140px;
+  width: 100%;
+  max-width: 160px;
   height: 0.4rem;
   border-radius: 999px;
   background: #e5e7eb;
@@ -1336,6 +1555,37 @@ defineExpose({
   color: #6b7280;
 }
 
+/* HISTORY HINT */
+.quick-history-hint {
+  margin-top: 0.15rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.7rem;
+  color: #6b7280;
+}
+
+.quick-history-dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: #22c55e;
+}
+
+.quick-history-text {
+  white-space: nowrap;
+}
+
+.quick-history-reset-btn {
+  border: none;
+  background: transparent;
+  font-size: 0.7rem;
+  color: #4f46e5;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 /* MODE SWITCH */
 .drill-mode-switch {
   display: flex;
@@ -1344,9 +1594,24 @@ defineExpose({
   gap: 0.25rem;
 }
 
+.quick-control-row-head {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 .drill-mode-label {
   font-size: 0.7rem;
   color: #6b7280;
+}
+
+.drill-mode-badge {
+  font-size: 0.65rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
 }
 
 .drill-mode-pills {
@@ -1399,7 +1664,7 @@ defineExpose({
   color: #9ca3af;
 }
 
-/* size switch */
+/* SIZE SWITCH */
 .drill-size-switch {
   display: flex;
   flex-direction: column;
@@ -1495,6 +1760,12 @@ defineExpose({
 .quick-empty-copy {
   font-size: 0.85rem;
   color: #6b7280;
+}
+
+.quick-empty-tip {
+  margin-top: 0.15rem;
+  font-size: 0.78rem;
+  color: #4b5563;
 }
 
 .quick-spinner-area {
@@ -1696,6 +1967,13 @@ defineExpose({
   background: #fef2f2;
 }
 
+/* Option interaction hint */
+.option-hint {
+  margin-top: 0.3rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
 /* EXPLANATION UI */
 .explanation-wrapper {
   margin-top: 0.6rem;
@@ -1857,6 +2135,31 @@ defineExpose({
   font-weight: 700;
 }
 
+/* post-drill encouragement */
+.post-drill-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  max-width: 360px;
+  font-size: 0.8rem;
+  color: #4b5563;
+}
+
+.post-drill-main {
+  font-weight: 500;
+  color: #111827;
+}
+
+.post-drill-sub {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+/* Buttons */
+.btn-icon {
+  margin-right: 0.25rem;
+}
+
 /* 🔴 End drill styling */
 .btn-danger {
   color: #b91c1c;
@@ -1875,11 +2178,13 @@ defineExpose({
   }
 
   .quick-header-right {
-    align-items: flex-start;
+    align-items: stretch;
+    max-width: none;
   }
 
   .drill-mode-switch,
-  .drill-size-switch {
+  .drill-size-switch,
+  .quick-history-hint {
     align-items: flex-start;
   }
 

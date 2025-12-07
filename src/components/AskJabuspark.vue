@@ -1,50 +1,83 @@
 <!-- src/components/AskJabuspark.vue -->
 <template>
   <section class="card ask-card">
-    <div class="card-header">
+    <!-- HEADER -->
+    <div class="card-header ask-header">
       <div class="card-header-main">
-        <h2>Ask Jabuspark</h2>
-        <p class="card-sub">
-          Ask any question about this course. Jabuspark will explain it
-          like a tutor.
+        <h2 class="ask-title">Ask Jabuspark</h2>
+        <p class="card-sub ask-sub">
+          Ask any question about this course and Jabuspark will explain it
+          like a tutor sitting beside you.
         </p>
+
         <p v-if="course?.code" class="ask-meta">
-          Focused on <strong>{{ course.code }}</strong>
+          Focused on
+          <strong>{{ course.code }}</strong>
           <span v-if="course?.title"> • {{ course.title }}</span>
         </p>
       </div>
+
       <div class="ask-header-right">
-        <span class="pill pill--ai">AI assistant</span>
+        <span class="pill pill--ai">
+          <span class="pill-dot"></span>
+          AI assistant
+        </span>
       </div>
     </div>
 
+    <!-- EXAMPLES / SUGGESTIONS -->
     <div class="examples">
-      <p class="examples-label">Try asking:</p>
+      <p class="examples-label">Not sure what to ask?</p>
       <ul>
         <li>“Explain this topic in simple terms with an example.”</li>
         <li>“Give me a 7-day study plan for this course.”</li>
       </ul>
+
+      <div class="suggestion-chips">
+        <button
+          v-for="(s, index) in quickSuggestions"
+          :key="index"
+          type="button"
+          class="suggestion-chip"
+          @click="useSuggestion(s)"
+        >
+          {{ s }}
+        </button>
+      </div>
     </div>
 
+    <!-- CHAT FORM -->
     <form class="chat-form" @submit.prevent="handleAsk">
-      <textarea
-        v-model="question"
-        rows="3"
-        class="textarea"
-        :placeholder="`Ask Jabuspark anything about ${
-          course?.code || 'this course'
-        }…`"
-        :maxlength="400"
-        :disabled="aiLoading"
-        @keydown.enter.ctrl.prevent="handleAsk"
-        @keydown.meta.enter.prevent="handleAsk"
-      ></textarea>
+      <div class="textarea-shell" :class="{ 'textarea-shell--loading': aiLoading }">
+        <textarea
+          ref="textareaRef"
+          v-model="question"
+          rows="3"
+          class="textarea ask-textarea"
+          :placeholder="`Ask Jabuspark anything about ${
+            course?.code || 'this course'
+          }…`"
+          :maxlength="400"
+          :disabled="aiLoading"
+          @keydown.enter.ctrl.prevent="handleAsk"
+          @keydown.meta.enter.prevent="handleAsk"
+        ></textarea>
+
+        <div v-if="aiLoading" class="textarea-overlay">
+          <span class="dot-bounce" aria-hidden="true">
+            <span></span><span></span><span></span>
+          </span>
+          <span class="textarea-overlay-text">Jabuspark is thinking…</span>
+        </div>
+      </div>
 
       <div class="chat-form-footer">
         <p class="chat-hint">
           Tip: Mention the exact topic or week (e.g. “Week 3 – cardiac cycle”)
-          to get a better answer.
+          and what you’re struggling with to get a sharper answer.
+          <span class="chat-hint-shortcut">Press <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to send</span>
         </p>
+
         <span class="char-counter">
           {{ questionLength }}/400
         </span>
@@ -63,18 +96,17 @@
       </button>
     </form>
 
-    <p v-if="aiError" class="error-text">
+    <!-- ERROR -->
+    <p v-if="aiError" class="error-text ask-error">
       {{ aiError }}
     </p>
 
+    <!-- ANSWER -->
     <div v-if="aiAnswer" class="ai-answer">
       <div class="ai-answer-header">
         <div class="ai-answer-header-left">
           <p class="ai-answer-label">Jabuspark</p>
-          <span
-            v-if="aiCached"
-            class="ai-answer-badge"
-          >
+          <span v-if="aiCached" class="ai-answer-badge">
             From Jabuspark memory
           </span>
         </div>
@@ -85,7 +117,7 @@
             class="ai-copy-btn"
             @click="copyAnswer"
           >
-            Copy
+            Copy answer
           </button>
 
           <button
@@ -110,7 +142,8 @@
       </p>
     </div>
 
-    <p class="muted">
+    <!-- FOOTNOTE -->
+    <p class="muted ask-footnote">
       Powered by AI (Gemini). Always double-check important topics with
       your lecturer and official materials.
     </p>
@@ -118,7 +151,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, nextTick } from "vue";
 
 const props = defineProps({
   courseId: {
@@ -149,6 +182,18 @@ const props = defineProps({
 const emit = defineEmits(["toast", "back-to-drill"]);
 
 const question = ref("");
+const aiLoading = ref(false);
+const aiError = ref("");
+const aiAnswer = ref("");
+const aiCached = ref(false); // came from cache?
+const textareaRef = ref(null);
+
+const quickSuggestions = [
+  "Summarise this topic in bullet points.",
+  "Give me a 7-day study plan for this course.",
+  "Explain this topic like I’m in secondary school.",
+  "Give me 5 exam-style questions with answers."
+];
 
 // Keep question in sync with initialQuestion from parent
 watch(
@@ -169,19 +214,10 @@ watch(
     const q = (props.initialQuestion || "").trim();
     if (!q) return;
 
-    // Make sure textarea reflects the latest prompt
     question.value = q;
-
-    // Trigger send
     await handleAsk();
   }
 );
-
-// --- ASK JABUSPARK (GEMINI) STATE ---
-const aiLoading = ref(false);
-const aiError = ref("");
-const aiAnswer = ref("");
-const aiCached = ref(false); // came from cache?
 
 // Escape HTML first so user content stays safe
 function escapeHtml(text) {
@@ -248,12 +284,20 @@ function getAuthToken() {
 async function copyAnswer() {
   if (!aiAnswer.value) return;
   try {
-    // Copy the original markdown text
     await navigator.clipboard.writeText(aiAnswer.value);
     showToast("Answer copied to clipboard.", "success");
   } catch {
     showToast("Could not copy answer.", "error");
   }
+}
+
+function useSuggestion(text) {
+  question.value = text;
+  nextTick(() => {
+    if (textareaRef.value) {
+      textareaRef.value.focus();
+    }
+  });
 }
 
 // --- ASK JABUSPARK (GEMINI) HANDLER ---
@@ -302,7 +346,6 @@ async function handleAsk() {
       (data && data.answer) ||
       "I couldn't generate an answer right now. Please try again.";
 
-    // detect cache from backend
     aiCached.value = !!(data && data.cached);
 
     if (aiCached.value) {
@@ -323,13 +366,48 @@ async function handleAsk() {
 <style scoped>
 .ask-card {
   position: relative;
+  overflow: hidden;
+}
+
+/* subtle glow at top */
+.ask-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.25;
+  background: radial-gradient(
+    circle at top right,
+    rgba(59, 130, 246, 0.25),
+    transparent 55%
+  );
+  pointer-events: none;
+}
+
+/* keep inner content on top of glow */
+.ask-card > * {
+  position: relative;
 }
 
 /* header */
+.ask-header {
+  align-items: flex-start;
+}
+
 .card-header-main {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.25rem;
+}
+
+.ask-title {
+  font-size: 1.05rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+.ask-sub {
+  font-size: 0.8rem;
+  color: #6b7280;
 }
 
 .ask-meta {
@@ -348,13 +426,41 @@ async function handleAsk() {
   align-items: flex-start;
 }
 
+/* AI pill */
 .pill--ai {
-  background: #eef2ff;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: linear-gradient(135deg, #eef2ff, #ecfeff);
   color: #4338ca;
   border-color: #e0e7ff;
+  padding-inline: 0.7rem;
+  box-shadow: 0 10px 30px rgba(79, 70, 229, 0.18);
+}
+
+.pill-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #22c55e;
+  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.25);
 }
 
 /* examples */
+.examples {
+  margin-top: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.75rem;
+  background: #f9fafb;
+  border: 1px dashed #e5e7eb;
+}
+
+.examples-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b7280;
+}
+
 .examples ul {
   margin-top: 0.25rem;
 }
@@ -363,6 +469,8 @@ async function handleAsk() {
   position: relative;
   padding-left: 0.9rem;
   margin-bottom: 0.25rem;
+  font-size: 0.78rem;
+  color: #4b5563;
 }
 
 .examples li::before {
@@ -374,7 +482,82 @@ async function handleAsk() {
   color: #9ca3af;
 }
 
+/* suggestion chips */
+.suggestion-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+
+.suggestion-chip {
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  padding: 0.2rem 0.7rem;
+  font-size: 0.7rem;
+  background: #ffffff;
+  color: #4b5563;
+  cursor: pointer;
+  white-space: nowrap;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.1s ease;
+}
+
+.suggestion-chip:hover {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.16);
+  transform: translateY(-1px);
+}
+
 /* form */
+.chat-form {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.textarea-shell {
+  position: relative;
+}
+
+.textarea-shell--loading .ask-textarea {
+  opacity: 0.7;
+}
+
+.ask-textarea {
+  resize: vertical;
+  min-height: 110px;
+}
+
+/* overlay when loading */
+.textarea-overlay {
+  position: absolute;
+  inset: 0.45rem 0.5rem;
+  border-radius: 0.7rem;
+  background: linear-gradient(
+    135deg,
+    rgba(15, 23, 42, 0.03),
+    rgba(37, 99, 235, 0.03)
+  );
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding-inline: 0.75rem;
+  pointer-events: none;
+}
+
+.textarea-overlay-text {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
 .chat-form-footer {
   display: flex;
   justify-content: space-between;
@@ -389,15 +572,36 @@ async function handleAsk() {
   max-width: 70%;
 }
 
-.char-counter {
-  font-size: 0.75rem;
+.chat-hint-shortcut {
+  display: inline-block;
+  margin-left: 0.35rem;
+  font-size: 0.7rem;
   color: #6b7280;
 }
 
+.chat-hint-shortcut kbd {
+  display: inline-block;
+  padding: 0.05rem 0.25rem;
+  border-radius: 4px;
+  border: 1px solid #e5e7eb;
+  font-size: 0.68rem;
+  background: #f9fafb;
+}
+
+.char-counter {
+  font-size: 0.75rem;
+  color: #6b7280;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
 .ask-submit-btn {
-  margin-top: 0.4rem;
+  margin-top: 0.6rem;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.45rem;
 }
 
@@ -435,15 +639,20 @@ async function handleAsk() {
 
 /* answer */
 .ai-answer {
-  margin-top: 0.75rem;
-  animation: fade-in 0.18s ease-out;
+  margin-top: 0.85rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 0.9rem;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-left: 3px solid #2563eb;
+  animation: fade-in-up 0.2s ease-out;
 }
 
 .ai-answer-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.35rem;
   gap: 0.5rem;
 }
 
@@ -461,6 +670,7 @@ async function handleAsk() {
 
 .ai-answer-label {
   font-weight: 600;
+  font-size: 0.82rem;
   color: #4b5563;
 }
 
@@ -483,19 +693,26 @@ async function handleAsk() {
   font-size: 0.75rem;
 }
 
+.ai-answer-text {
+  font-size: 0.8rem;
+  color: #374151;
+  line-height: 1.5;
+}
+
 .ai-answer-footnote {
   margin-top: 0.35rem;
   font-size: 0.72rem;
   color: #6b7280;
 }
 
-.ai-copy-btn {
+/* buttons in answer header */
+.ai-copy-btn,
+.ai-back-btn {
   border-radius: 999px;
   border: 1px solid #e5e7eb;
-  padding: 0.2rem 0.7rem;
+  padding: 0.2rem 0.75rem;
   font-size: 0.7rem;
   background: #ffffff;
-  color: #4b5563;
   cursor: pointer;
   transition:
     background 0.15s ease,
@@ -504,34 +721,44 @@ async function handleAsk() {
     transform 0.1s ease;
 }
 
-.ai-copy-btn:hover {
+.ai-copy-btn {
+  color: #4b5563;
+}
+
+.ai-back-btn {
+  color: #2563eb;
+  background: #f9fafb;
+}
+
+.ai-copy-btn:hover,
+.ai-back-btn:hover {
   background: #f9fafb;
   border-color: #d1d5db;
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
   transform: translateY(-1px);
 }
 
-/* back to drill button */
-.ai-back-btn {
-  border-radius: 999px;
-  border: 1px solid #e5e7eb;
-  padding: 0.2rem 0.75rem;
-  font-size: 0.7rem;
-  background: #f9fafb;
-  color: #2563eb;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease,
-    box-shadow 0.15s ease,
-    transform 0.1s ease;
+/* error */
+.ask-error {
+  margin-top: 0.45rem;
 }
 
-.ai-back-btn:hover {
-  background: #eff6ff;
-  border-color: #bfdbfe;
-  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.25);
-  transform: translateY(-1px);
+/* footer note */
+.ask-footnote {
+  margin-top: 0.6rem;
+  font-size: 0.72rem;
+}
+
+/* animations */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* mobile */
@@ -554,6 +781,10 @@ async function handleAsk() {
     width: 100%;
     justify-content: flex-start;
     flex-wrap: wrap;
+  }
+
+  .suggestion-chip {
+    max-width: 100%;
   }
 }
 </style>
