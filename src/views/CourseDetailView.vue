@@ -2,18 +2,13 @@
 <template>
   <div class="page page--course-detail">
     <!-- Toast -->
-    <div
-      v-if="toast.visible"
-      :class="['toast', `toast--${toast.type}`]"
-    >
+    <div v-if="toast.visible" :class="['toast', `toast--${toast.type}`]">
       {{ toast.message }}
     </div>
 
     <!-- Header -->
     <header class="page-header">
-      <RouterLink to="/courses" class="back-link">
-        ← Back to courses
-      </RouterLink>
+      <RouterLink to="/courses" class="back-link"> ← Back to courses </RouterLink>
 
       <h1 class="page-title">
         {{ course?.title || (loadingCourse ? "Loading course…" : "Course workspace") }}
@@ -28,8 +23,13 @@
 
     <!-- DESKTOP / TABLET LAYOUT -->
     <div class="layout" v-if="!isMobile">
-      <!-- LEFT COLUMN: Materials + Drill -->
+      <!-- LEFT COLUMN: Materials + Practice -->
       <div class="left-column">
+        <!-- MATERIALS (labeled) -->
+        <div class="section-head">
+          <p class="section-kicker">Materials</p>
+        </div>
+
         <CourseMaterials
           :course-id="courseId"
           :course="course"
@@ -37,29 +37,29 @@
           @start-drill="handleStartDrillFromMaterial"
         />
 
+        <!-- PRACTICE (labeled) -->
+        <div class="section-head section-head--spaced">
+          <p class="section-kicker">Practice</p>
+        </div>
+
         <!-- Quick drill controls card -->
         <section class="card card--drill-controls">
           <div class="card-header">
             <div>
-              <h2>Quick drill for this course</h2>
+              <h2>Quick drill</h2>
               <p class="card-sub">
                 <span v-if="activeDrillMaterial">
-                  Short MCQs based on
-                  <strong>{{ activeDrillMaterial.title }}</strong>.
+                  Short MCQs based on <strong>{{ activeDrillMaterial.title }}</strong>.
                 </span>
                 <span v-else>
-                  Short MCQs to quickly test yourself on
-                  {{ course?.code || "this course" }}.
+                  Short MCQs to quickly test yourself on {{ course?.code || "this course" }}.
                 </span>
               </p>
             </div>
 
             <div class="card-header-right">
-              <button
-                type="button"
-                class="pill-btn pill-btn--solid"
-                @click="toggleInlineQuickDrill"
-              >
+              <!-- Primary CTA -->
+              <button type="button" class="pill-btn pill-btn--solid" @click="toggleInlineQuickDrill">
                 {{ showInlineQuickDrill ? "Hide drill" : "Start quick drill" }}
               </button>
             </div>
@@ -70,9 +70,7 @@
             <span v-if="activeDrillMaterial">
               for <strong>{{ activeDrillMaterial.title }}</strong>.
             </span>
-            <span v-else>
-              for this course.
-            </span>
+            <span v-else> for this course. </span>
           </p>
         </section>
 
@@ -86,12 +84,17 @@
             :material-title="activeDrillMaterial?.title || ''"
             @toast="handleToast"
             @ask-ai="handleAskFromDrill"
+            @completed="handleDrillCompleted"
           />
         </transition>
       </div>
 
-      <!-- RIGHT COLUMN: Ask Jabuspark -->
+      <!-- RIGHT COLUMN: Ask AI (labeled) -->
       <aside class="right-column">
+        <div class="section-head">
+          <p class="section-kicker">Ask AI</p>
+        </div>
+
         <AskJabuspark
           :course-id="courseId"
           :course="course"
@@ -115,21 +118,23 @@
         >
           Materials
         </button>
+
         <button
           type="button"
           class="mobile-tab"
-          :class="{ 'mobile-tab--active': activeMobileTab === 'drill' }"
-          @click="setActiveTab('drill')"
+          :class="{ 'mobile-tab--active': activeMobileTab === 'practice' }"
+          @click="setActiveTab('practice')"
         >
-          Quick drill
+          Practice
         </button>
+
         <button
           type="button"
           class="mobile-tab"
           :class="{ 'mobile-tab--active': activeMobileTab === 'ai' }"
           @click="setActiveTab('ai')"
         >
-          Ask Jabuspark
+          Ask AI
         </button>
       </div>
 
@@ -143,10 +148,7 @@
         />
 
         <!-- On mobile, drill is always visible inside its tab -->
-        <div
-          v-else-if="activeMobileTab === 'drill'"
-          class="space-y-2"
-        >
+        <div v-else-if="activeMobileTab === 'practice'" class="space-y-2">
           <QuickDrill
             ref="quickDrillRef"
             :course-id="courseId"
@@ -154,6 +156,7 @@
             :material-title="activeDrillMaterial?.title || ''"
             @toast="handleToast"
             @ask-ai="handleAskFromDrill"
+            @completed="handleDrillCompleted"
           />
         </div>
 
@@ -173,13 +176,7 @@
 </template>
 
 <script setup>
-import {
-  ref,
-  onMounted,
-  onBeforeUnmount,
-  watch,
-  nextTick,
-} from "vue";
+import { ref, onMounted, onBeforeUnmount, watch, nextTick } from "vue";
 import { useRoute } from "vue-router";
 import { getCourse } from "../services/courses";
 
@@ -202,7 +199,7 @@ const toast = ref({
 
 // --- Mobile / layout state ---
 const isMobile = ref(false);
-const activeMobileTab = ref("materials"); // 'materials' | 'drill' | 'ai'
+const activeMobileTab = ref("materials"); // 'materials' | 'practice' | 'ai'
 
 // Inline drill toggle (desktop)
 const showInlineQuickDrill = ref(false);
@@ -223,7 +220,6 @@ const askAutoToken = ref(0);
 const lastDrillQuestionIndex = ref(null);
 
 // ---------- HELPERS & STATE ----------
-
 function setActiveTab(tab) {
   activeMobileTab.value = tab;
 }
@@ -235,9 +231,7 @@ function updateIsMobile() {
 
 function handleToast(payload) {
   const { message, type = "success" } =
-    typeof payload === "string"
-      ? { message: payload, type: "success" }
-      : payload || {};
+    typeof payload === "string" ? { message: payload, type: "success" } : payload || {};
 
   if (!message) return;
 
@@ -282,7 +276,7 @@ function handleStartDrillFromMaterial(material) {
   activeDrillMaterial.value = material || null;
 
   if (isMobile.value) {
-    activeMobileTab.value = "drill";
+    activeMobileTab.value = "practice";
   } else {
     showInlineQuickDrill.value = true;
     // Scroll the drill card into view
@@ -295,9 +289,7 @@ function handleStartDrillFromMaterial(material) {
   }
 
   handleToast({
-    message: `Quick drill started for ${
-      material?.title || course.value?.code || "this course"
-    }.`,
+    message: `Quick drill started for ${material?.title || course.value?.code || "this course"}.`,
     type: "success",
   });
 }
@@ -331,13 +323,59 @@ function handleAskFromDrill(payload) {
 }
 
 /**
+ * ✅ Step 6: When drill finishes → save progress (front-end MVP fallback).
+ * QuickDrill should emit:
+ *   @completed="{ score, total, correct, courseId, materialId, materialTitle }"
+ */
+function handleDrillCompleted(payload) {
+  // NOTE: Backend may not support this yet → localStorage fallback.
+  // This powers Dashboard "last score" even when API returns empty.
+  try {
+    const total = Number(payload?.total || 0);
+    const correct = Number(payload?.correct || 0);
+    const score =
+      typeof payload?.score === "number"
+        ? payload.score
+        : total > 0
+        ? Math.round((correct / total) * 100)
+        : 0;
+
+    const attempt = {
+      id: `local-${Date.now()}`,
+      courseId,
+      courseCode: course.value?.code || "",
+      courseTitle: course.value?.title || "",
+      materialId: payload?.materialId ?? activeDrillMaterial.value?.id ?? null,
+      materialTitle: payload?.materialTitle ?? activeDrillMaterial.value?.title ?? "",
+      total,
+      correct,
+      score,
+      date: new Date().toISOString(),
+      source: "localStorage-fallback",
+    };
+
+    localStorage.setItem("jabuspark_last_attempt", JSON.stringify(attempt));
+
+    const raw = localStorage.getItem("jabuspark_drill_history");
+    const arr = raw ? JSON.parse(raw) : [];
+    const next = Array.isArray(arr) ? arr : [];
+    next.unshift(attempt);
+    localStorage.setItem("jabuspark_drill_history", JSON.stringify(next.slice(0, 50)));
+  } catch (e) {
+    console.warn("Could not persist drill attempt", e);
+  }
+
+  handleToast({ message: "Progress saved. Nice work ✅", type: "success" });
+}
+
+/**
  * Handle "Back to drill question" from AskJabuspark
  */
 function handleBackToDrill() {
   const idx = lastDrillQuestionIndex.value;
 
   if (isMobile.value) {
-    activeMobileTab.value = "drill";
+    activeMobileTab.value = "practice";
   } else {
     showInlineQuickDrill.value = true;
   }
@@ -347,35 +385,30 @@ function handleBackToDrill() {
   // Wait for QuickDrill to be rendered, then ask it to scroll
   nextTick(() => {
     const inst = quickDrillRef.value;
-    if (
-      inst &&
-      typeof inst.scrollToQuestionFromOutside === "function"
-    ) {
+    if (inst && typeof inst.scrollToQuestionFromOutside === "function") {
       inst.scrollToQuestionFromOutside(idx);
     }
   });
 }
 
-// 👀 Keep the drill tab / inline drill in sync with query (?tab=drill, ?drillId=...)
+// 👀 Keep the drill tab / inline drill in sync with query (?tab=drill|practice, ?drillId=...)
 // Note: drillId may represent a specific material drill; for now we just open the drill.
 watch(
   () => [route.query.drillId, route.query.tab, isMobile.value],
   ([drillId, tab]) => {
-    const hasDrillId =
-      drillId !== undefined && drillId !== null && drillId !== "";
+    const hasDrillId = drillId !== undefined && drillId !== null && drillId !== "";
+    const wantsPractice = tab === "drill" || tab === "practice" || hasDrillId;
 
     if (isMobile.value) {
-      // MOBILE: switch tabs
-      if (tab === "drill" || hasDrillId) {
-        activeMobileTab.value = "drill";
+      if (wantsPractice) {
+        activeMobileTab.value = "practice";
       } else if (tab === "ai") {
         activeMobileTab.value = "ai";
       } else {
         activeMobileTab.value = "materials";
       }
     } else {
-      // DESKTOP: open inline quick drill when coming from dashboard with tab=drill or drillId
-      if (tab === "drill" || hasDrillId) {
+      if (wantsPractice) {
         showInlineQuickDrill.value = true;
       }
     }
@@ -384,6 +417,13 @@ watch(
 );
 
 onMounted(() => {
+  // ✅ remember last opened course so /practice can "Continue"
+  try {
+    localStorage.setItem("jabuspark_last_course_id", String(courseId));
+  } catch (e) {
+    // ignore storage errors (private mode etc.)
+  }
+
   loadCourse();
   updateIsMobile();
   if (typeof window !== "undefined") {
@@ -398,8 +438,28 @@ onBeforeUnmount(() => {
 });
 </script>
 
-<!-- Shared “workspace” styles – slightly elevated, more polished look -->
 <style>
+/* === NEW: Small section labels (safe additions) === */
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.15rem;
+}
+
+.section-head--spaced {
+  margin-top: 0.9rem;
+}
+
+.section-kicker {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b; /* slate-500-ish */
+}
+
+/* ---------------- Existing styles (kept) ---------------- */
 .page {
   max-width: 1120px;
   margin: 0 auto;
@@ -645,152 +705,6 @@ onBeforeUnmount(() => {
   color: #9ca3af;
 }
 
-/* Materials list */
-.materials-list {
-  list-style: none;
-  padding: 0;
-  margin: 0.5rem 0 0;
-}
-
-.materials-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.6rem 0;
-  border-top: 1px solid #f3f4f6;
-}
-
-.materials-item:first-of-type {
-  border-top: none;
-}
-
-.materials-info {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-}
-
-.materials-title {
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: #111827;
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.file-pill {
-  font-size: 0.9rem;
-}
-
-.materials-meta {
-  font-size: 0.75rem;
-  color: #6b7280;
-  display: flex;
-  gap: 0.35rem;
-  flex-wrap: wrap;
-}
-
-.dot::before {
-  content: "• ";
-  color: #d1d5db;
-}
-
-.pill-btn {
-  border-radius: 999px;
-  border: 1px solid #e5e7eb;
-  padding: 0.3rem 0.9rem;
-  font-size: 0.8rem;
-  color: #4f46e5;
-  background: #f9fafb;
-  text-decoration: none;
-  white-space: nowrap;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease,
-    box-shadow 0.15s ease,
-    transform 0.12s ease;
-}
-
-.pill-btn:hover {
-  background: #eef2ff;
-  border-color: #c7d2fe;
-  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
-  transform: translateY(-1px);
-}
-
-/* Solid version for Upload / main actions */
-.pill-btn--solid {
-  background: #4f46e5;
-  color: #ffffff;
-  border-color: #4f46e5;
-}
-
-.pill-btn--solid:hover {
-  background: #4338ca;
-  border-color: #4338ca;
-}
-
-/* Upload panel */
-.upload-panel {
-  margin-top: 0.75rem;
-  padding: 0.75rem 0.85rem;
-  border-radius: 0.9rem;
-  background: #f9fafb;
-  border: 1px dashed #e5e7eb;
-}
-
-.upload-row {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  margin-bottom: 0.5rem;
-}
-
-.upload-label {
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: #4b5563;
-}
-
-.upload-input {
-  font-size: 0.8rem;
-  padding: 0.4rem 0.6rem;
-  border-radius: 0.55rem;
-  border: 1px solid #d1d5db;
-  background: #ffffff;
-}
-
-.upload-input:focus-visible {
-  outline: 2px solid #4f46e5;
-  outline-offset: 1px;
-}
-
-.upload-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 0.4rem;
-}
-
-.error-text {
-  margin-top: 0.4rem;
-  font-size: 0.75rem;
-  color: #b91c1c;
-}
-
-.success-text {
-  margin-top: 0.4rem;
-  font-size: 0.75rem;
-  color: #15803d;
-}
-
 /* QUICK DRILL (card itself is inside QuickDrill component) */
 .quick-drill-card {
   margin-top: 0.5rem;
@@ -819,353 +733,6 @@ onBeforeUnmount(() => {
   background: #f3f4ff;
   color: #4338ca;
   display: inline-block;
-}
-
-.drill-size-switch {
-  display: flex;
-  gap: 0.3rem;
-}
-
-.size-pill {
-  border-radius: 999px;
-  border: 1px solid #e5e7eb;
-  padding: 0.16rem 0.55rem;
-  font-size: 0.72rem;
-  background: #f9fafb;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease,
-    box-shadow 0.15s ease,
-    transform 0.12s ease;
-}
-
-.size-pill--active {
-  background: #4f46e5;
-  color: #ffffff;
-  border-color: #4f46e5;
-  box-shadow: 0 10px 26px rgba(79, 70, 229, 0.4);
-}
-
-.spinner-area {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.5rem 0;
-}
-
-.spinner {
-  width: 22px;
-  height: 22px;
-  border-radius: 999px;
-  border: 2px solid #e5e7eb;
-  border-top-color: #4f46e5;
-  animation: spin 0.7s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* Progress */
-.progress-row {
-  margin-top: 0.25rem;
-  margin-bottom: 0.4rem;
-}
-
-.progress-label {
-  display: block;
-  font-size: 0.78rem;
-  color: #4b5563;
-  margin-bottom: 0.2rem;
-}
-
-.progress-bar {
-  width: 100%;
-  height: 0.35rem;
-  border-radius: 999px;
-  background: #f3f4f6;
-  overflow: hidden;
-}
-
-.progress-bar__fill {
-  height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(to right, #4f46e5, #6366f1);
-  transition: width 0.2s ease-out;
-}
-
-.question-list {
-  list-style: none;
-  padding: 0;
-  margin: 0.75rem 0 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-}
-
-.question-item {
-  padding: 0.65rem 0;
-  border-top: 1px solid #f3f4f6;
-}
-
-.question-item:first-of-type {
-  border-top: none;
-}
-
-.question-text {
-  display: flex;
-  gap: 0.4rem;
-  font-size: 0.9rem;
-  color: #111827;
-  margin-bottom: 0.45rem;
-}
-
-.question-number {
-  font-weight: 600;
-  color: #4b5563;
-}
-
-.options-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap: 0.4rem;
-}
-
-.option-pill {
-  border-radius: 999px;
-  border: 1px solid #e5e7eb;
-  background: #f9fafb;
-  padding: 0.3rem 0.7rem;
-  font-size: 0.8rem;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  cursor: pointer;
-  text-align: left;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease,
-    box-shadow 0.15s ease,
-    transform 0.12s ease;
-}
-
-.option-pill:hover {
-  background: #eef2ff;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
-  transform: translateY(-1px);
-}
-
-.option-pill .opt-label {
-  font-weight: 600;
-  color: #4b5563;
-}
-
-.option-pill .opt-text {
-  color: #111827;
-}
-
-/* Selected before submit */
-.option-pill.selected {
-  border-color: #4f46e5;
-  background: #eef2ff;
-}
-
-/* After submit */
-.option-pill.correct {
-  border-color: #16a34a;
-  background: #ecfdf3;
-}
-
-.option-pill.incorrect {
-  border-color: #dc2626;
-  background: #fef2f2;
-}
-
-.explanation-text {
-  margin-top: 0.35rem;
-  font-size: 0.8rem;
-  color: #4b5563;
-}
-
-.drill-footer {
-  margin-top: 0.9rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.score-pill {
-  font-size: 0.85rem;
-  padding: 0.25rem 0.8rem;
-  border-radius: 999px;
-  background: #eef2ff;
-  color: #111827;
-}
-
-.drill-actions-inline {
-  margin-top: 0.6rem;
-}
-
-/* Buttons (for drill) */
-.btn {
-  border-radius: 999px;
-  padding: 0.45rem 1.1rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid transparent;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.3rem;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease,
-    box-shadow 0.15s ease,
-    transform 0.12s ease;
-}
-
-.btn-primary {
-  background: #4f46e5;
-  color: #ffffff;
-  border-color: #4f46e5;
-}
-
-.btn-primary:hover {
-  background: #4338ca;
-  border-color: #4338ca;
-  box-shadow: 0 12px 30px rgba(79, 70, 229, 0.45);
-  transform: translateY(-1px);
-}
-
-.btn-outline {
-  background: #ffffff;
-  color: #4f46e5;
-  border-color: #e5e7eb;
-}
-
-.btn-outline:hover {
-  background: #eef2ff;
-  border-color: #c7d2fe;
-}
-
-.btn-ghost {
-  background: transparent;
-  color: #4b5563;
-  border-color: transparent;
-}
-
-.btn-ghost:hover {
-  background: #f3f4f6;
-}
-
-/* Alerts */
-.alert {
-  font-size: 0.8rem;
-  padding: 0.45rem 0.75rem;
-  border-radius: 0.8rem;
-  margin-bottom: 0.45rem;
-}
-
-.alert-error {
-  background: #fef2f2;
-  color: #b91c1c;
-  border: 1px solid #fecaca;
-}
-
-/* Ask Jabuspark styles */
-.examples {
-  margin-top: 0.75rem;
-  font-size: 0.8rem;
-  color: #4b5563;
-}
-
-.examples-label {
-  font-weight: 600;
-  margin-bottom: 0.25rem;
-}
-
-.examples ul {
-  padding-left: 1.1rem;
-}
-
-.chat-form {
-  margin-top: 0.8rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.textarea {
-  width: 100%;
-  border-radius: 0.9rem;
-  border: 1px solid #d1d5db;
-  padding: 0.6rem 0.8rem;
-  font-size: 0.85rem;
-  resize: vertical;
-  min-height: 80px;
-}
-
-.textarea:focus-visible {
-  outline: 2px solid #4f46e5;
-  outline-offset: 2px;
-}
-
-.primary-btn {
-  border-radius: 999px;
-  border: none;
-  padding: 0.5rem 1.3rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #ffffff;
-  background: #4f46e5;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    box-shadow 0.15s ease,
-    transform 0.12s ease;
-}
-
-.primary-btn:hover {
-  background: #4338ca;
-  box-shadow: 0 12px 30px rgba(79, 70, 229, 0.45);
-  transform: translateY(-1px);
-}
-
-.primary-btn-full {
-  width: 100%;
-}
-
-.ai-answer {
-  margin-top: 0.75rem;
-  padding: 0.6rem 0.8rem;
-  border-radius: 0.9rem;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
-  font-size: 0.83rem;
-  color: #111827;
-}
-
-.ai-answer-label {
-  font-weight: 600;
-  margin-bottom: 0.2rem;
-  color: #4b5563;
-}
-
-.ai-answer-text {
-  line-height: 1.5;
-}
-
-.muted {
-  margin-top: 0.4rem;
-  font-size: 0.75rem;
-  color: #9ca3af;
 }
 
 /* Mobile tabs (hidden by default, enabled in mobile media query) */
@@ -1294,85 +861,6 @@ onBeforeUnmount(() => {
   .card-header-right {
     width: 100%;
     justify-content: space-between;
-  }
-
-  /* Materials list: stack text + button */
-  .materials-item {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .materials-item .pill-btn {
-    width: 100%;
-    text-align: center;
-    margin-top: 0.4rem;
-  }
-
-  /* Upload inputs full-width and comfy */
-  .upload-input {
-    font-size: 0.85rem;
-    padding: 0.45rem 0.6rem;
-  }
-
-  .upload-actions {
-    flex-direction: column-reverse;
-    align-items: stretch;
-  }
-
-  .upload-actions .pill-btn,
-  .upload-actions .primary-btn {
-    width: 100%;
-    justify-content: center;
-  }
-
-  /* Quick drill MCQs: one option per row */
-  .options-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .option-pill {
-    width: 100%;
-  }
-
-  .drill-footer {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .drill-footer .actions {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-  }
-
-  .drill-footer .btn {
-    width: 100%;
-    justify-content: center;
-  }
-
-  /* Primary buttons and pills become full-width where it makes sense */
-  .btn,
-  .primary-btn,
-  .primary-btn-full {
-    width: 100%;
-    justify-content: center;
-  }
-
-  /* Ask Jabuspark: nicer to read on small screen */
-  .chat-form {
-    margin-top: 0.7rem;
-    gap: 0.45rem;
-  }
-
-  .textarea {
-    min-height: 90px;
-    font-size: 0.85rem;
-  }
-
-  .ai-answer {
-    max-height: 260px;
-    overflow-y: auto;
   }
 }
 </style>

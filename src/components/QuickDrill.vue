@@ -108,10 +108,7 @@
           </div>
 
           <!-- Progress bar -->
-          <div
-            v-if="questions.length"
-            class="quick-progress quick-control-row"
-          >
+          <div v-if="questions.length" class="quick-progress quick-control-row">
             <div class="quick-progress-track">
               <div
                 class="quick-progress-fill"
@@ -240,9 +237,7 @@
     >
       <div class="quick-empty-icon">⚡</div>
       <div class="quick-empty-body">
-        <p class="quick-empty-title">
-          No questions loaded yet.
-        </p>
+        <p class="quick-empty-title">No questions loaded yet.</p>
         <p class="quick-empty-copy">
           <span v-if="materialId">
             Start a quick drill to practice MCQs tied to
@@ -264,12 +259,8 @@
             :disabled="drillLoading"
           >
             <span class="btn-icon">▶</span>
-            <span v-if="drillSize === 'all'">
-              Start full-question drill
-            </span>
-            <span v-else>
-              Start {{ drillSize }}-question drill
-            </span>
+            <span v-if="drillSize === 'all'">Start full-question drill</span>
+            <span v-else>Start {{ drillSize }}-question drill</span>
           </button>
         </div>
       </div>
@@ -283,6 +274,60 @@
 
     <!-- Questions + footer -->
     <div v-if="questions.length && !drillLoading" class="drill-body">
+      <!-- ✅ Review panel (shows only after completion) -->
+      <div v-if="showResults" class="review-panel">
+        <div class="review-left">
+          <div class="review-score">
+            <span class="review-score-main">{{ scorePercent }}%</span>
+            <span class="review-score-sub">
+              {{ correctCount }} / {{ totalQuestions }} correct
+            </span>
+          </div>
+
+          <div class="review-badges">
+            <span
+              class="review-pill"
+              :class="scorePercent >= 70 ? 'review-pill--good' : 'review-pill--warn'"
+            >
+              {{ scorePercent >= 70 ? "On track" : "Needs revision" }}
+            </span>
+
+            <span class="review-pill review-pill--neutral">
+              Mistakes: {{ mistakeCount }}
+            </span>
+
+            <span class="review-pill review-pill--neutral">
+              Time: {{ formattedTimer }}
+            </span>
+          </div>
+        </div>
+
+        <div class="review-actions">
+          <button type="button" class="btn btn-primary" @click="retrySameDrill">
+            🔁 Retry
+          </button>
+
+          <button
+            type="button"
+            class="btn btn-ghost"
+            :disabled="mistakeCount === 0"
+            @click="toggleMistakesReview"
+          >
+            {{ showMistakesOnly ? "Show all" : "Review mistakes" }}
+          </button>
+
+          <button
+            type="button"
+            class="btn btn-ghost"
+            :disabled="mistakeCount === 0"
+            @click="askAiAboutMistakes"
+            title="Ask Jabuspark to explain the mistakes and key concepts"
+          >
+            💬 Ask AI about mistakes
+          </button>
+        </div>
+      </div>
+
       <!-- 🔄 Explanations loading indicator (after submit, END MODE bulk) -->
       <div
         v-if="showResults && explanationsLoading"
@@ -294,18 +339,18 @@
 
       <ol class="question-list">
         <li
-          v-for="(q, index) in questions"
-          :key="q.id"
+          v-for="item in visibleQuestionsWithIndex"
+          :key="item.q.id"
           class="question-item"
-          :ref="(el) => setQuestionRef(el, index)"
+          :ref="(el) => setQuestionRef(el, item.index)"
         >
           <div class="question-header-row">
             <div class="question-text">
               <span class="question-number-pill">
-                Q{{ index + 1 }}
+                Q{{ item.index + 1 }}
               </span>
               <span class="question-copy">
-                {{ q.question_text }}
+                {{ item.q.question_text }}
               </span>
             </div>
 
@@ -313,7 +358,7 @@
               v-if="!showResults"
               type="button"
               class="question-jump"
-              @click="scrollToQuestion(index)"
+              @click="scrollToQuestion(item.index)"
             >
               Jump to this question
             </button>
@@ -325,27 +370,27 @@
               :key="opt"
               type="button"
               class="option-pill"
-              :class="optionClass(q, opt)"
-              @click="selectAnswer(q.id, opt)"
-              :disabled="isOptionDisabled(q)"
+              :class="optionClass(item.q, opt)"
+              @click="selectAnswer(item.q.id, opt)"
+              :disabled="isOptionDisabled(item.q)"
             >
               <span class="opt-label">{{ opt }}.</span>
               <span class="opt-text">
                 {{
                   opt === "A"
-                    ? q.option_a
+                    ? item.q.option_a
                     : opt === "B"
-                    ? q.option_b
+                    ? item.q.option_b
                     : opt === "C"
-                    ? q.option_c
-                    : q.option_d
+                    ? item.q.option_c
+                    : item.q.option_d
                 }}
               </span>
             </button>
           </div>
 
           <!-- Little interaction tip on the first question only -->
-          <p v-if="index === 0" class="option-hint">
+          <p v-if="item.index === 0" class="option-hint">
             <span v-if="isInstantMode">
               In Instant mode, your first answer is locked for each question —
               think before you tap.
@@ -360,36 +405,34 @@
             <button
               type="button"
               class="question-ask-ai"
-              @click="askJabusparkAboutQuestion(q, index)"
+              @click="askJabusparkAboutQuestion(item.q, item.index)"
             >
               💬 Ask Jabuspark to explain this question
             </button>
           </div>
 
           <!-- 🧠 Explanation block -->
-          <div v-if="shouldShowExplanation(q)" class="explanation-wrapper">
+          <div v-if="shouldShowExplanation(item.q)" class="explanation-wrapper">
             <!-- Per-question loading in INSTANT mode -->
             <div
               v-if="
                 isInstantMode &&
-                userAnswers[q.id] &&
-                isExplanationLoadingForQuestion(q.id)
+                userAnswers[item.q.id] &&
+                isExplanationLoadingForQuestion(item.q.id)
               "
               class="explanation-locked"
             >
               <span class="locked-icon">⏳</span>
-              <span class="locked-text">
-                Generating explanation…
-              </span>
+              <span class="locked-text">Generating explanation…</span>
             </div>
 
             <!-- Unlocked explanation -->
             <div
-              v-else-if="userAnswers[q.id] && q.explanation"
+              v-else-if="userAnswers[item.q.id] && item.q.explanation"
               class="explanation-card"
               :class="{
-                'explanation-card--correct': isQuestionCorrect(q),
-                'explanation-card--incorrect': !isQuestionCorrect(q),
+                'explanation-card--correct': isQuestionCorrect(item.q),
+                'explanation-card--incorrect': !isQuestionCorrect(item.q),
               }"
             >
               <div class="explanation-header">
@@ -401,12 +444,12 @@
                 <span
                   class="explanation-result"
                   :class="{
-                    'explanation-result--correct': isQuestionCorrect(q),
-                    'explanation-result--incorrect': !isQuestionCorrect(q),
+                    'explanation-result--correct': isQuestionCorrect(item.q),
+                    'explanation-result--incorrect': !isQuestionCorrect(item.q),
                   }"
                 >
                   {{
-                    isQuestionCorrect(q)
+                    isQuestionCorrect(item.q)
                       ? "You were correct"
                       : "You were incorrect"
                   }}
@@ -414,22 +457,22 @@
               </div>
 
               <p class="explanation-body">
-                {{ q.explanation }}
+                {{ item.q.explanation }}
               </p>
 
               <div class="explanation-meta">
                 <span class="meta-label">Correct answer:</span>
-                <span class="meta-value">{{ correctAnswerText(q) }}</span>
+                <span class="meta-value">{{ correctAnswerText(item.q) }}</span>
               </div>
             </div>
 
             <!-- Answered but explanation missing -->
             <div
               v-else-if="
-                userAnswers[q.id] &&
-                !q.explanation &&
+                userAnswers[item.q.id] &&
+                !item.q.explanation &&
                 !explanationsLoading &&
-                !isExplanationLoadingForQuestion(q.id)
+                !isExplanationLoadingForQuestion(item.q.id)
               "
               class="explanation-locked explanation-locked--warning"
             >
@@ -454,7 +497,7 @@
         <div v-if="showResults" class="score-pill">
           <span class="score-pill-label">You scored</span>
           <span class="score-pill-value">
-            {{ score }} / {{ totalQuestions }}
+            {{ correctCount }} / {{ totalQuestions }}
           </span>
         </div>
 
@@ -512,31 +555,15 @@
 </template>
 
 <script setup>
-import {
-  ref,
-  computed,
-  onMounted,
-  onBeforeUnmount,
-  watch,
-  nextTick,
-} from "vue";
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from "vue";
 import { getQuickDrill, getQuestionExplanation } from "../services/questions";
 import { completeDrill } from "../services/drills";
 
 const props = defineProps({
-  courseId: {
-    type: Number,
-    required: true,
-  },
-  // NEW: material context
-  materialId: {
-    type: Number,
-    default: null,
-  },
-  materialTitle: {
-    type: String,
-    default: "",
-  },
+  courseId: { type: Number, required: true },
+  // material context
+  materialId: { type: Number, default: null },
+  materialTitle: { type: String, default: "" },
 });
 
 const emit = defineEmits(["toast", "completed", "progress", "ask-ai"]);
@@ -575,10 +602,7 @@ function loadAnsweredHistory() {
 
 function saveAnsweredHistory() {
   try {
-    localStorage.setItem(
-      ANSWERED_QUESTIONS_KEY,
-      JSON.stringify(answeredHistory.value)
-    );
+    localStorage.setItem(ANSWERED_QUESTIONS_KEY, JSON.stringify(answeredHistory.value));
   } catch (e) {
     console.error("Failed to save answered history", e);
   }
@@ -618,10 +642,7 @@ function resetAnsweredHistoryForCurrent() {
   delete copy[key];
   answeredHistory.value = copy;
   saveAnsweredHistory();
-  showToast(
-    "Question history cleared. Future drills can reuse all questions.",
-    "info"
-  );
+  showToast("Question history cleared. Future drills can reuse all questions.", "info");
 }
 
 const answeredCountForCurrent = computed(() => {
@@ -640,7 +661,9 @@ const questions = ref([]);
 const userAnswers = ref({});
 const showResults = ref(false);
 
-// Last drill (localStorage)
+// ✅ Review state (after completion)
+const showMistakesOnly = ref(false);
+
 const lastDrill = ref(null);
 
 // For question scrolling
@@ -653,7 +676,6 @@ const perQuestionExplanationLoading = ref({});
 
 // Timer
 const timerSeconds = ref(0);
-const timerRunning = ref(false);
 let timerId = null;
 
 const totalQuestions = computed(() => questions.value.length);
@@ -679,7 +701,8 @@ const formattedTimer = computed(() => {
   return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
 });
 
-const score = computed(() => {
+// correct count
+const correctCount = computed(() => {
   if (!questions.value.length) return 0;
   let correct = 0;
   for (const q of questions.value) {
@@ -689,10 +712,9 @@ const score = computed(() => {
   return correct;
 });
 
-// score % + personalised message
 const scorePercent = computed(() => {
   if (!totalQuestions.value) return 0;
-  return Math.round((score.value / totalQuestions.value) * 100);
+  return Math.round((correctCount.value / totalQuestions.value) * 100);
 });
 
 const postDrillMessage = computed(() => {
@@ -715,18 +737,36 @@ const currentQuestionIndex = computed(() => {
 });
 
 // 🔒 Is drill in progress (used to lock settings)
-const isDrillLocked = computed(
-  () => questions.value.length && !showResults.value
-);
+const isDrillLocked = computed(() => questions.value.length && !showResults.value);
+
+// Mistakes helpers
+const mistakesWithIndex = computed(() => {
+  const out = [];
+  for (let i = 0; i < questions.value.length; i++) {
+    const q = questions.value[i];
+    const ans = userAnswers.value[q.id];
+    if (!ans) continue;
+    if (ans !== q.correct_option) out.push({ q, index: i });
+  }
+  return out;
+});
+
+const mistakeCount = computed(() => mistakesWithIndex.value.length);
+
+const visibleQuestionsWithIndex = computed(() => {
+  if (!showResults.value) {
+    return questions.value.map((q, index) => ({ q, index }));
+  }
+  if (showMistakesOnly.value) {
+    return mistakesWithIndex.value;
+  }
+  return questions.value.map((q, index) => ({ q, index }));
+});
 
 // 🔃 Emit progress to parent (dashboard / course view)
 function emitProgress(state = "active") {
   if (!questions.value.length) {
-    emit("progress", {
-      current: 0,
-      total: 0,
-      state,
-    });
+    emit("progress", { current: 0, total: 0, state });
     return;
   }
 
@@ -740,7 +780,6 @@ function emitProgress(state = "active") {
 function startTimer() {
   stopTimer();
   timerSeconds.value = 0;
-  timerRunning.value = true;
 
   if (typeof window === "undefined") return;
 
@@ -750,7 +789,6 @@ function startTimer() {
 }
 
 function stopTimer() {
-  timerRunning.value = false;
   if (timerId !== null && typeof window !== "undefined") {
     window.clearInterval(timerId);
     timerId = null;
@@ -797,7 +835,6 @@ function loadDrillModePreference() {
 
 /* 🔐 ACTIVE DRILL SNAPSHOT (for resume) */
 function saveActiveDrillSnapshot() {
-  // If no drill or drill is finished, clear any saved state for this course/material combo
   if (!questions.value.length || showResults.value) {
     clearActiveDrillSnapshot();
     return;
@@ -860,7 +897,6 @@ function loadActiveDrillSnapshot() {
     );
     if (!found) return false;
 
-    // Restore core state
     drillSize.value = found.drillSize ?? drillSize.value;
 
     if (found.drillMode === "instant" || found.drillMode === "end") {
@@ -871,14 +907,20 @@ function loadActiveDrillSnapshot() {
     userAnswers.value = found.userAnswers || {};
     timerSeconds.value = found.timerSeconds || 0;
     showResults.value = false;
+    showMistakesOnly.value = false;
 
-    // Reset transient stuff
     questionRefs.value = [];
     explanationsLoading.value = false;
     perQuestionExplanationLoading.value = {};
 
     if (questions.value.length) {
-      startTimer();
+      // resume timer from snapshot
+      stopTimer();
+      if (typeof window !== "undefined") {
+        timerId = window.setInterval(() => {
+          timerSeconds.value++;
+        }, 1000);
+      }
       emitProgress("active");
       return true;
     }
@@ -942,7 +984,6 @@ function buildAiPromptForQuestion(q) {
   ].join("\n");
 }
 
-/* Trigger: ask Jabuspark about this question */
 function askJabusparkAboutQuestion(q, index) {
   const prompt = buildAiPromptForQuestion(q);
 
@@ -958,12 +999,73 @@ function askJabusparkAboutQuestion(q, index) {
   showToast("Opened Ask Jabuspark with this question context.", "info");
 }
 
+// ✅ Post-drill: ask AI about mistakes
+function askAiAboutMistakes() {
+  if (!showResults.value || mistakeCount.value === 0) return;
+
+  const mistakes = mistakesWithIndex.value.slice(0, 6).map((m, idx) => {
+    const q = m.q;
+    const chosen = userAnswers.value[q.id];
+    return [
+      `${idx + 1}) ${q.question_text}`,
+      `Chosen: ${chosen || "—"}`,
+      `Correct: ${q.correct_option}`,
+    ].join("\n");
+  });
+
+  const header = [
+    "You are tutoring a university student preparing for an exam.",
+    "They just completed a quick drill and want help understanding their mistakes.",
+    "",
+    `Course ID: ${props.courseId}`,
+    props.materialId ? `Material: ${props.materialTitle || props.materialId}` : "Material: none (course-level drill)",
+    "",
+    `Score: ${scorePercent.value}% (${correctCount.value}/${totalQuestions.value})`,
+    `Mistakes: ${mistakeCount.value}`,
+    "",
+    "Here are a few of the questions they got wrong:",
+    mistakes.join("\n\n"),
+    "",
+    "Please do ALL of the following:",
+    "1) Identify the key concepts being tested in the wrong answers.",
+    "2) Explain the correct reasoning in simple steps (no jargon).",
+    "3) Give a short checklist of how to avoid these mistakes next time.",
+    "4) End with 5 quick practice prompts the student can try immediately.",
+  ].join("\n");
+
+  emit("ask-ai", {
+    from: "quick-drill-mistakes",
+    courseId: props.courseId,
+    materialId: props.materialId || null,
+    questionId: null,
+    questionIndex: null,
+    prompt: header,
+  });
+
+  showToast("Opened Ask Jabuspark with your mistakes summary.", "info");
+}
+
+function toggleMistakesReview() {
+  if (!showResults.value) return;
+  if (!mistakeCount.value) return;
+
+  showMistakesOnly.value = !showMistakesOnly.value;
+
+  if (showMistakesOnly.value) {
+    nextTick(() => {
+      const first = mistakesWithIndex.value[0];
+      if (first) scrollToQuestion(first.index);
+    });
+  }
+}
+
 /* MAIN ACTIONS */
 async function startQuickDrill() {
   try {
     drillLoading.value = true;
     drillError.value = null;
     showResults.value = false;
+    showMistakesOnly.value = false;
     userAnswers.value = {};
     questions.value = [];
     questionRefs.value = [];
@@ -990,21 +1092,17 @@ async function startQuickDrill() {
       return;
     }
 
-    // backend already handles LIMIT / random ordering
     questions.value = data;
 
     startTimer();
     emitProgress("active");
 
-    // Save this drill as the current active snapshot
     saveActiveDrillSnapshot();
 
     if (typeof window !== "undefined") {
       await nextTick();
       const el = document.querySelector(".quick-drill-card");
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   } catch (err) {
     console.error(err);
@@ -1017,46 +1115,32 @@ async function startQuickDrill() {
 }
 
 async function selectAnswer(questionId, optionKey) {
-  // After submit, lock everything
   if (showResults.value) return;
 
-  // INSTANT MODE: once answered, don't allow changes
   if (isInstantMode.value && userAnswers.value[questionId]) {
     return;
   }
 
   if (!isInstantMode.value) {
-    // END MODE: can change or clear before submit
     const current = userAnswers.value[questionId];
     const newValue = current === optionKey ? null : optionKey;
 
-    userAnswers.value = {
-      ...userAnswers.value,
-      [questionId]: newValue,
-    };
+    userAnswers.value = { ...userAnswers.value, [questionId]: newValue };
 
     emitProgress("active");
     saveActiveDrillSnapshot();
 
-    // If they cleared their answer, don't fetch explanation
     if (!newValue) return;
   } else {
-    // INSTANT MODE: one-shot selection
-    userAnswers.value = {
-      ...userAnswers.value,
-      [questionId]: optionKey,
-    };
-
+    userAnswers.value = { ...userAnswers.value, [questionId]: optionKey };
     emitProgress("active");
     saveActiveDrillSnapshot();
   }
 
-  // INSTANT MODE: fetch explanation immediately for this question
   if (isInstantMode.value) {
     const q = questions.value.find((item) => item.id === questionId);
     if (!q) return;
 
-    // Avoid refetching explanation on each change – reuse once loaded
     if (q.explanation && q.explanation.trim()) return;
     if (perQuestionExplanationLoading.value[questionId]) return;
 
@@ -1084,8 +1168,8 @@ function saveLastDrill() {
 
   const record = {
     courseId: props.courseId,
-    // we keep last drill per course (not per material) for now
-    score: score.value,
+    // keep as "correct count" for the chip: score/total
+    score: correctCount.value,
     total: totalQuestions.value,
     drillSize: effectiveSize,
     date: new Date().toISOString(),
@@ -1134,21 +1218,43 @@ function correctAnswerText(q) {
   return `${label}. ${text}`;
 }
 
+function saveLastAttemptFallback() {
+  // Front-end MVP fallback so Dashboard can show "last score" even if API is empty.
+  try {
+    const attempt = {
+      id: `local-${Date.now()}`,
+      courseId: props.courseId,
+      courseCode: "",
+      courseTitle: "",
+      materialId: props.materialId || null,
+      materialTitle: props.materialTitle || "",
+      total: totalQuestions.value,
+      correct: correctCount.value,
+      score: scorePercent.value, // percent
+      date: new Date().toISOString(),
+      source: "localStorage-fallback",
+    };
+    localStorage.setItem("jabuspark_last_attempt", JSON.stringify(attempt));
+  } catch {
+    // ignore storage errors
+  }
+}
+
 async function submitDrill() {
   if (!questions.value.length) return;
 
   showResults.value = true;
+  showMistakesOnly.value = false;
   stopTimer();
 
   const total = totalQuestions.value;
-  const correct = score.value;
+  const correct = correctCount.value;
 
   const drillSizeForStats =
     drillSize.value === "all" ? totalQuestions.value : drillSize.value;
 
   emitProgress("completed");
 
-  // store all answered question IDs in history for this course/material
   const answeredIdsThisDrill = questions.value
     .filter((q) => userAnswers.value[q.id])
     .map((q) => q.id);
@@ -1174,23 +1280,22 @@ async function submitDrill() {
   }
 
   saveLastDrill();
+  saveLastAttemptFallback();
 
+  // ✅ Required event payload
   emit("completed", {
     courseId: props.courseId,
     materialId: props.materialId || null,
-    score: correct,
     total,
-    drillSize: drillSizeForStats,
+    correct,
+    score: scorePercent.value, // percent (Dashboard-friendly)
     date: new Date().toISOString(),
   });
 
   const pending = questions.value.filter(
-    (q) =>
-      userAnswers.value[q.id] &&
-      (!q.explanation || !q.explanation.trim())
+    (q) => userAnswers.value[q.id] && (!q.explanation || !q.explanation.trim())
   );
 
-  // Drill is over; no longer an "active" session
   clearActiveDrillSnapshot();
 
   if (!pending.length) return;
@@ -1216,6 +1321,7 @@ function resetDrill() {
   questions.value = [];
   userAnswers.value = {};
   showResults.value = false;
+  showMistakesOnly.value = false;
   drillError.value = null;
   questionRefs.value = [];
   explanationsLoading.value = false;
@@ -1224,6 +1330,32 @@ function resetDrill() {
   timerSeconds.value = 0;
   emitProgress("idle");
   clearActiveDrillSnapshot();
+}
+
+// ✅ Retry same drill (no API call, same questions)
+function retrySameDrill() {
+  if (!questions.value.length) return;
+
+  showResults.value = false;
+  showMistakesOnly.value = false;
+  explanationsLoading.value = false;
+  perQuestionExplanationLoading.value = {};
+  userAnswers.value = {};
+  drillError.value = null;
+
+  // reset timer
+  stopTimer();
+  timerSeconds.value = 0;
+  startTimer();
+
+  saveActiveDrillSnapshot();
+  emitProgress("active");
+
+  showToast("Retry started. New attempt on the same questions ✅", "info");
+
+  nextTick(() => {
+    scrollToQuestion(0);
+  });
 }
 
 // 🔴 Explicit end-drill handler so user can intentionally discard a session
@@ -1239,13 +1371,9 @@ function endDrill() {
   if (!confirmed) return;
 
   resetDrill();
-  showToast(
-    "Drill ended. You can change your settings and start a new one.",
-    "info"
-  );
+  showToast("Drill ended. You can change your settings and start a new one.", "info");
 }
 
-// Inline end-drill shortcut from settings area
 function endDrillFromSettings() {
   if (!questions.value.length) return;
 
@@ -1258,21 +1386,14 @@ function endDrillFromSettings() {
   if (!confirmed) return;
 
   resetDrill();
-  showToast(
-    "Drill ended. Adjust your settings and start a new drill when you're ready.",
-    "info"
-  );
+  showToast("Drill ended. Adjust your settings and start a new drill when you're ready.", "info");
 }
 
-// answer button state
 function optionClass(q, opt) {
   const selected = userAnswers.value[q.id];
 
-  // INSTANT MODE: neutral until answered, then show correct/incorrect
   if (isInstantMode.value) {
-    if (!selected) {
-      return {};
-    }
+    if (!selected) return {};
 
     const isCorrect = q.correct_option === opt;
     const isSelected = selected === opt;
@@ -1284,11 +1405,8 @@ function optionClass(q, opt) {
     };
   }
 
-  // END MODE: before submit, only highlight selected
   if (!showResults.value) {
-    return {
-      selected: selected === opt,
-    };
+    return { selected: selected === opt };
   }
 
   const isCorrect = q.correct_option === opt;
@@ -1301,13 +1419,11 @@ function optionClass(q, opt) {
   };
 }
 
-// Disable options once answered in INSTANT mode
 function isOptionDisabled(q) {
   if (!isInstantMode.value) return false;
   return !!userAnswers.value[q.id];
 }
 
-// DOM refs
 function setQuestionRef(el, index) {
   if (el) {
     questionRefs.value[index] = el;
@@ -1332,7 +1448,6 @@ function isExplanationLoadingForQuestion(id) {
   return !!perQuestionExplanationLoading.value[id];
 }
 
-// Decide if we should render the explanation block for this question
 function shouldShowExplanation(q) {
   if (isInstantMode.value) {
     if (userAnswers.value[q.id]) return true;
@@ -1362,12 +1477,10 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
-  // Save where we stopped, if drill is still in progress
   saveActiveDrillSnapshot();
   stopTimer();
 });
 
-// When course changes, reset + reload last drill
 watch(
   () => props.courseId,
   () => {
@@ -1376,8 +1489,6 @@ watch(
   }
 );
 
-// When material changes (e.g. clicking another "Drill this material"),
-// clear current drill and idle; user can start a fresh one.
 watch(
   () => props.materialId,
   () => {
@@ -1386,7 +1497,6 @@ watch(
   }
 );
 
-// 👇 Expose for parent (CourseDetailView) to jump back to a specific question
 defineExpose({
   scrollToQuestionFromOutside,
 });
@@ -1695,10 +1805,7 @@ defineExpose({
   background: transparent;
   color: #4b5563;
   cursor: pointer;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease,
-    box-shadow 0.15s ease,
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease,
     transform 0.08s ease;
 }
 
@@ -1765,10 +1872,7 @@ defineExpose({
   background: transparent;
   color: #4b5563;
   cursor: pointer;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease,
-    box-shadow 0.15s ease,
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease,
     transform 0.08s ease;
 }
 
@@ -1892,6 +1996,81 @@ defineExpose({
   margin-bottom: 0.5rem;
 }
 
+/* ✅ Review panel */
+.review-panel {
+  border: 1px solid #e5e7eb;
+  background: linear-gradient(135deg, #f9fafb, #eef2ff);
+  border-radius: 1rem;
+  padding: 0.85rem 0.9rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.review-left {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.review-score {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+
+.review-score-main {
+  font-size: 1.35rem;
+  font-weight: 750;
+  color: #111827;
+  letter-spacing: -0.02em;
+}
+
+.review-score-sub {
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.review-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.review-pill {
+  font-size: 0.72rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #374151;
+}
+
+.review-pill--good {
+  border-color: #bbf7d0;
+  background: #ecfdf3;
+  color: #166534;
+}
+
+.review-pill--warn {
+  border-color: #fed7aa;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.review-pill--neutral {
+  background: #f9fafb;
+  color: #4b5563;
+}
+
+.review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
 /* QUESTIONS */
 .drill-body {
   margin-top: 0.9rem;
@@ -1953,9 +2132,7 @@ defineExpose({
   display: inline-flex;
   align-items: center;
   gap: 0.2rem;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
 .question-jump:hover {
@@ -1981,10 +2158,7 @@ defineExpose({
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease,
-    box-shadow 0.15s ease,
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease,
     transform 0.08s ease;
 }
 
@@ -2013,10 +2187,7 @@ defineExpose({
   font-size: 0.85rem;
   text-align: left;
   cursor: pointer;
-  transition:
-    border-color 0.15s ease,
-    background 0.15s ease,
-    box-shadow 0.15s ease,
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease,
     transform 0.1s ease;
 }
 
@@ -2047,7 +2218,6 @@ defineExpose({
   color: #111827;
 }
 
-/* answer states */
 .option-pill.selected {
   border-color: #4f46e5;
   background: #eef2ff;
@@ -2174,7 +2344,6 @@ defineExpose({
   color: #111827;
 }
 
-/* LOCKED / UNAVAILABLE STATES */
 .explanation-locked {
   margin-top: 0.4rem;
   padding: 0.45rem 0.65rem;
@@ -2231,7 +2400,6 @@ defineExpose({
   font-weight: 700;
 }
 
-/* post-drill encouragement */
 .post-drill-copy {
   display: flex;
   flex-direction: column;
@@ -2251,12 +2419,10 @@ defineExpose({
   color: #6b7280;
 }
 
-/* Buttons */
 .btn-icon {
   margin-right: 0.25rem;
 }
 
-/* 🔴 End drill styling */
 .btn-danger {
   color: #b91c1c;
 }
@@ -2310,6 +2476,15 @@ defineExpose({
     );
     backdrop-filter: blur(8px);
     padding-bottom: 0.35rem;
+  }
+
+  .review-panel {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .review-actions {
+    justify-content: flex-start;
   }
 }
 

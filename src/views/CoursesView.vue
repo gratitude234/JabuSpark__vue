@@ -88,10 +88,7 @@
           </div>
 
           <!-- Level filter chips -->
-          <div
-            v-if="levelOptions.length"
-            class="flex flex-wrap gap-1.5 text-[11px]"
-          >
+          <div v-if="levelOptions.length" class="flex flex-wrap gap-1.5 text-[11px]">
             <button
               type="button"
               class="inline-flex items-center rounded-full border px-2.5 py-1 font-medium transition"
@@ -125,11 +122,9 @@
         <!-- HEADER + COUNT -->
         <div class="flex items-center justify-between mt-1">
           <div>
-            <h2 class="text-sm font-semibold text-brand-dark">
-              Your courses
-            </h2>
+            <h2 class="text-sm font-semibold text-brand-dark">Your courses</h2>
             <p class="mt-0.5 text-[11px] text-muted">
-              Tap any course to view materials, drills, and more details.
+              Open a course workspace, or jump straight into Practice.
             </p>
           </div>
 
@@ -154,32 +149,33 @@
 
         <!-- COURSE LIST -->
         <div v-if="courses.length" class="mt-2 space-y-2.5 sm:space-y-3">
-          <!-- When filters/search return results -->
           <template v-if="filteredCourses.length">
-            <RouterLink
+            <div
               v-for="course in filteredCourses"
               :key="course.id"
-              :to="`/courses/${course.id}`"
-              class="group flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/80 px-3.5 py-3 sm:px-4 sm:py-3.5 text-xs sm:text-sm shadow-[0_1px_3px_rgba(15,23,42,0.06)] hover:border-brand/60 hover:shadow-md hover:-translate-y-[1px] transition-all"
+              class="group flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/80 px-3.5 py-3 sm:px-4 sm:py-3.5 text-xs sm:text-sm shadow-[0_1px_3px_rgba(15,23,42,0.06)] hover:border-brand/60 hover:shadow-md hover:-translate-y-[1px] transition-all cursor-pointer"
+              role="button"
+              tabindex="0"
+              @click="openCourse(course.id)"
+              @keydown.enter.prevent="openCourse(course.id)"
+              @keydown.space.prevent="openCourse(course.id)"
             >
               <!-- Left: tiny badge/initials -->
               <div
                 class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-[10px] font-semibold uppercase tracking-wide text-brand-dark"
               >
                 <span v-if="course.code">
-                  {{ course.code.split(' ')[0] || course.code }}
+                  {{ course.code.split(" ")[0] || course.code }}
                 </span>
                 <span v-else>
-                  {{ (course.title || 'C')[0] }}
+                  {{ (course.title || "C")[0] }}
                 </span>
               </div>
 
               <!-- Middle: main info -->
               <div class="min-w-0 flex-1">
                 <div class="flex items-center justify-between gap-2">
-                  <p
-                    class="truncate font-semibold text-brand-dark group-hover:text-brand transition"
-                  >
+                  <p class="truncate font-semibold text-brand-dark group-hover:text-brand transition">
                     {{ course.title }}
                   </p>
 
@@ -210,29 +206,33 @@
                 </div>
               </div>
 
-              <!-- Right: CTA -->
-              <div class="flex flex-col items-end gap-1">
-                <span
-                  class="inline-flex items-center rounded-full bg-brand-soft/80 px-2.5 py-1 text-[11px] font-medium text-brand group-hover:bg-brand-soft group-hover:text-brand-dark transition"
+              <!-- Right: actions -->
+              <div class="flex items-center gap-2">
+                <!-- Practice -->
+                <button
+                  type="button"
+                  class="inline-flex items-center rounded-full border border-brand/30 bg-brand-soft/70 px-3 py-1.5 text-[11px] font-semibold text-brand-dark hover:bg-brand-soft transition"
+                  @click.stop="practiceCourse(course.id)"
                 >
-                  Open course
-                  <svg
-                    class="ml-1 h-3.5 w-3.5"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    aria-hidden="true"
-                  >
+                  ⚡ Practice
+                </button>
+
+                <!-- Open -->
+                <button
+                  type="button"
+                  class="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 transition"
+                  @click.stop="openCourse(course.id)"
+                >
+                  Open
+                  <svg class="ml-1 h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                     <path
                       d="M8.5 6.75a.75.75 0 0 0 0 1.5h5.69l-7.22 7.22a.75.75 0 1 0 1.06 1.06l7.22-7.22v5.69a.75.75 0 0 0 1.5 0v-8.5a.75.75 0 0 0-.75-.75h-8.5z"
                       fill="currentColor"
                     />
                   </svg>
-                </span>
-                <span class="hidden text-[10px] text-slate-400 sm:inline">
-                  Materials & drills inside
-                </span>
+                </button>
               </div>
-            </RouterLink>
+            </div>
           </template>
 
           <!-- No matches for filters/search -->
@@ -240,7 +240,7 @@
             v-else
             class="mt-2 rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 px-3.5 py-3 text-[11px] text-slate-500"
           >
-            No courses match this search or filter.  
+            No courses match this search or filter.
             <button
               type="button"
               class="ml-1 font-medium text-brand hover:underline"
@@ -306,21 +306,39 @@ const filteredCourses = computed(() => {
 
   // Level filter
   if (activeLevel.value) {
-    list = list.filter(
-      (course) => String(course.level) === String(activeLevel.value)
-    );
+    list = list.filter((course) => String(course.level) === String(activeLevel.value));
   }
 
   return list;
 });
 
-const showResetFilters = computed(() => {
-  return Boolean(searchQuery.value.trim() || activeLevel.value);
-});
+const showResetFilters = computed(() => Boolean(searchQuery.value.trim() || activeLevel.value));
 
 function resetFilters() {
   searchQuery.value = "";
   activeLevel.value = null;
+}
+
+function rememberLastCourse(id) {
+  try {
+    localStorage.setItem("jabuspark_last_course_id", String(id));
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function openCourse(id) {
+  rememberLastCourse(id);
+  router.push(`/courses/${id}`);
+}
+
+function practiceCourse(id) {
+  rememberLastCourse(id);
+  router.push({
+    name: "course-detail",
+    params: { id },
+    query: { tab: "drill", drillId: "new" },
+  });
 }
 
 async function loadCourses() {

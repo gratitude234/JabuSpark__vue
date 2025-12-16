@@ -3,7 +3,10 @@ import axios from "axios";
 
 // Base URL for your API (Truehost / cPanel)
 const baseURL =
-  import.meta.env.VITE_API_BASE_URL || "https://jabumarket.com.ng/api";
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_API_BASE ||
+  "https://jabumarket.com.ng/api";
+
 
 const api = axios.create({
   baseURL, // e.g. https://jabumarket.com.ng/api
